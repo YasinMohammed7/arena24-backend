@@ -3,12 +3,13 @@ import {
   ConflictException,
   NotFoundException,
   BadRequestException,
-} from '@nestjs/common';
-import { PrismaService } from '@/prisma/prisma.service';
-import { CreateReviewDto } from './dto/create-review.dto';
-import { UpdateReviewDto } from './dto/update-review.dto';
-import { QueryReviewDto } from './dto/query-review.dto';
-import { ReviewResponseDto } from './dto/review-response.dto';
+} from "@nestjs/common";
+import { PrismaService } from "@/prisma/prisma.service";
+import { Prisma } from "@prisma/client";
+import { CreateReviewDto } from "./dto/create-review.dto";
+import { UpdateReviewDto } from "./dto/update-review.dto";
+import { QueryReviewDto } from "./dto/query-review.dto";
+import { ReviewResponseDto } from "./dto/review-response.dto";
 
 @Injectable()
 export class ReviewService {
@@ -16,7 +17,7 @@ export class ReviewService {
 
   async create(
     createReviewDto: CreateReviewDto,
-    userId: string,
+    userId: string
   ): Promise<ReviewResponseDto> {
     const { locationId, comment, stars } = createReviewDto;
 
@@ -25,7 +26,7 @@ export class ReviewService {
       where: { id: userId },
     });
     if (!user) {
-      throw new BadRequestException('User not found');
+      throw new BadRequestException("User not found");
     }
 
     // Check if location exists
@@ -33,7 +34,7 @@ export class ReviewService {
       where: { id: locationId },
     });
     if (!location) {
-      throw new BadRequestException('Location not found');
+      throw new BadRequestException("Location not found");
     }
 
     // Check if review already exists (unique constraint)
@@ -47,7 +48,7 @@ export class ReviewService {
     });
 
     if (existingReview) {
-      throw new ConflictException('User has already reviewed this location');
+      throw new ConflictException("User has already reviewed this location");
     }
 
     const review = await this.prisma.review.create({
@@ -88,7 +89,7 @@ export class ReviewService {
     const { locationId, userId, minStars, page = 1, limit = 10 } = queryDto;
     const skip = (page - 1) * limit;
 
-    const where: any = {};
+    const where: Prisma.ReviewWhereInput = {};
 
     if (locationId) where.locationId = locationId;
     if (userId) where.userId = userId;
@@ -99,7 +100,7 @@ export class ReviewService {
         where,
         skip,
         take: limit,
-        orderBy: { createdAt: 'desc' },
+        orderBy: { createdAt: "desc" },
         include: {
           user: {
             select: {
@@ -161,7 +162,7 @@ export class ReviewService {
 
   async findByLocation(
     locationId: number,
-    queryDto: QueryReviewDto = {},
+    queryDto: QueryReviewDto = {}
   ): Promise<{
     data: ReviewResponseDto[];
     total: number;
@@ -170,7 +171,7 @@ export class ReviewService {
     const { minStars, page = 1, limit = 10 } = queryDto;
     const skip = (page - 1) * limit;
 
-    const where: any = { locationId };
+    const where: Prisma.ReviewWhereInput = { locationId };
     if (minStars) where.stars = { gte: minStars };
 
     const [reviews, total, avgResult] = await Promise.all([
@@ -178,7 +179,7 @@ export class ReviewService {
         where,
         skip,
         take: limit,
-        orderBy: { createdAt: 'desc' },
+        orderBy: { createdAt: "desc" },
         include: {
           user: {
             select: {
@@ -216,7 +217,7 @@ export class ReviewService {
 
   async update(
     id: number,
-    updateReviewDto: UpdateReviewDto,
+    updateReviewDto: UpdateReviewDto
   ): Promise<ReviewResponseDto> {
     // Check if review exists
     const existingReview = await this.prisma.review.findUnique({
@@ -280,10 +281,10 @@ export class ReviewService {
         _avg: { stars: true },
       }),
       this.prisma.review.groupBy({
-        by: ['stars'],
+        by: ["stars"],
         where: { locationId },
         _count: { stars: true },
-        orderBy: { stars: 'asc' },
+        orderBy: { stars: "asc" },
       }),
     ]);
 

@@ -2,10 +2,10 @@ import {
   Injectable,
   NotFoundException,
   ConflictException,
-} from '@nestjs/common';
-import { PrismaService } from '@/prisma/prisma.service';
-import { CreateScheduleDto } from './dto/create-schedule.dto';
-import { UpdateScheduleDto } from './dto/update-schedule.dto';
+} from "@nestjs/common";
+import { PrismaService } from "@/prisma/prisma.service";
+import { CreateScheduleDto } from "./dto/create-schedule.dto";
+import { UpdateScheduleDto } from "./dto/update-schedule.dto";
 
 @Injectable()
 export class ScheduleService {
@@ -18,7 +18,7 @@ export class ScheduleService {
     });
 
     if (!location) {
-      throw new NotFoundException('Location not found');
+      throw new NotFoundException("Location not found");
     }
 
     // Check for duplicate schedule for the same location and day
@@ -31,7 +31,7 @@ export class ScheduleService {
 
     if (existingSchedule) {
       throw new ConflictException(
-        'Schedule already exists for this location and day',
+        "Schedule already exists for this location and day"
       );
     }
 
@@ -64,9 +64,9 @@ export class ScheduleService {
         },
       },
       orderBy: [
-        { locationId: 'asc' },
-        { dayOfWeek: 'asc' },
-        { startTime: 'asc' },
+        { locationId: "asc" },
+        { dayOfWeek: "asc" },
+        { startTime: "asc" },
       ],
     });
   }
@@ -86,7 +86,7 @@ export class ScheduleService {
     });
 
     if (!schedule) {
-      throw new NotFoundException('Schedule not found');
+      throw new NotFoundException("Schedule not found");
     }
 
     return schedule;
@@ -95,7 +95,7 @@ export class ScheduleService {
   async findByLocation(locationId: number) {
     return this.prisma.schedules.findMany({
       where: { locationId },
-      orderBy: [{ dayOfWeek: 'asc' }, { startTime: 'asc' }],
+      orderBy: [{ dayOfWeek: "asc" }, { startTime: "asc" }],
     });
   }
 
@@ -114,7 +114,7 @@ export class ScheduleService {
 
       if (existingSchedule) {
         throw new ConflictException(
-          'Schedule already exists for this location and day',
+          "Schedule already exists for this location and day"
         );
       }
     }

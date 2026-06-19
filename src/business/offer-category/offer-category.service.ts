@@ -1,28 +1,37 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
-import { PrismaService } from '@/prisma/prisma.service';
-import { CreateOfferCategoryDto } from './dto/create-offer-category.dto';
-import { UpdateOfferCategoryDto } from './dto/update-offer-category.dto';
-import { QueryOfferCategoryDto } from './dto/query-offer-category.dto';
-import { OfferCategoryResponseDto } from './dto/offer-category-response.dto';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+} from "@nestjs/common";
+import { Prisma, OfferCategory } from "@prisma/client";
+import { PrismaService } from "@/prisma/prisma.service";
+import { CreateOfferCategoryDto } from "./dto/create-offer-category.dto";
+import { UpdateOfferCategoryDto } from "./dto/update-offer-category.dto";
+import { QueryOfferCategoryDto } from "./dto/query-offer-category.dto";
+import { OfferCategoryResponseDto } from "./dto/offer-category-response.dto";
 
 @Injectable()
 export class OfferCategoryService {
   constructor(private prisma: PrismaService) {}
 
-  async create(createOfferCategoryDto: CreateOfferCategoryDto): Promise<OfferCategoryResponseDto> {
+  async create(
+    createOfferCategoryDto: CreateOfferCategoryDto
+  ): Promise<OfferCategoryResponseDto> {
     const { name } = createOfferCategoryDto;
 
     // Check if category with the same name already exists
     const existingCategory = await this.prisma.offerCategory.findUnique({
-      where: { name }
+      where: { name },
     });
 
     if (existingCategory) {
-      throw new ConflictException(`Offer category with name '${name}' already exists`);
+      throw new ConflictException(
+        `Offer category with name '${name}' already exists`
+      );
     }
 
     const category = await this.prisma.offerCategory.create({
-      data: { name }
+      data: { name },
     });
 
     return this.mapToResponseDto(category, 0);
@@ -38,12 +47,12 @@ export class OfferCategoryService {
     const { name, page = 1, limit = 10 } = queryDto;
     const skip = (page - 1) * limit;
 
-    const where: any = {};
+    const where: Prisma.OfferCategoryWhereInput = {};
 
     // Filter by name (partial match)
     if (name) {
       where.name = {
-        contains: name
+        contains: name,
       };
     }
 
@@ -52,25 +61,25 @@ export class OfferCategoryService {
         where,
         skip,
         take: limit,
-        orderBy: { name: 'asc' },
+        orderBy: { name: "asc" },
         include: {
           _count: {
             select: {
               offers: {
                 where: {
                   startDate: { lte: new Date() },
-                  endDate: { gte: new Date() }
-                }
-              }
-            }
-          }
-        }
+                  endDate: { gte: new Date() },
+                },
+              },
+            },
+          },
+        },
       }),
-      this.prisma.offerCategory.count({ where })
+      this.prisma.offerCategory.count({ where }),
     ]);
 
     const totalPages = Math.ceil(total / limit);
-    const mappedCategories = categories.map(category =>
+    const mappedCategories = categories.map((category) =>
       this.mapToResponseDto(category, category._count.offers)
     );
 
@@ -79,7 +88,7 @@ export class OfferCategoryService {
       total,
       page,
       limit,
-      totalPages
+      totalPages,
     };
   }
 
@@ -92,12 +101,12 @@ export class OfferCategoryService {
             offers: {
               where: {
                 startDate: { lte: new Date() },
-                endDate: { gte: new Date() }
-              }
-            }
-          }
-        }
-      }
+                endDate: { gte: new Date() },
+              },
+            },
+          },
+        },
+      },
     });
 
     if (!category) {
@@ -107,16 +116,30 @@ export class OfferCategoryService {
     return this.mapToResponseDto(category, category._count.offers);
   }
 
-  async findWithOffers(id: number, includeInactive = false): Promise<{
+  async findWithOffers(
+    id: number,
+    includeInactive = false
+  ): Promise<{
     category: OfferCategoryResponseDto;
-    offers: any[];
+    offers: Prisma.OfferGetPayload<{
+      include: {
+        location: {
+          select: {
+            id: true;
+            name: true;
+            type: true;
+            address: true;
+          };
+        };
+      };
+    }>[];
   }> {
     const now = new Date();
     const whereCondition = includeInactive
       ? {}
       : {
           startDate: { lte: now },
-          endDate: { gte: now }
+          endDate: { gte: now },
         };
 
     const category = await this.prisma.offerCategory.findUnique({
@@ -130,13 +153,13 @@ export class OfferCategoryService {
                 id: true,
                 name: true,
                 type: true,
-                address: true
-              }
-            }
+                address: true,
+              },
+            },
           },
-          orderBy: { endDate: 'asc' }
-        }
-      }
+          orderBy: { endDate: "asc" },
+        },
+      },
     });
 
     if (!category) {
@@ -145,16 +168,19 @@ export class OfferCategoryService {
 
     return {
       category: this.mapToResponseDto(category, category.offers.length),
-      offers: category.offers
+      offers: category.offers,
     };
   }
 
-  async update(id: number, updateOfferCategoryDto: UpdateOfferCategoryDto): Promise<OfferCategoryResponseDto> {
+  async update(
+    id: number,
+    updateOfferCategoryDto: UpdateOfferCategoryDto
+  ): Promise<OfferCategoryResponseDto> {
     const { name } = updateOfferCategoryDto;
 
     // Check if category exists
     const existingCategory = await this.prisma.offerCategory.findUnique({
-      where: { id }
+      where: { id },
     });
 
     if (!existingCategory) {
@@ -164,11 +190,13 @@ export class OfferCategoryService {
     // Check if new name conflicts with existing category
     if (name && name !== existingCategory.name) {
       const nameConflict = await this.prisma.offerCategory.findUnique({
-        where: { name }
+        where: { name },
       });
 
       if (nameConflict) {
-        throw new ConflictException(`Offer category with name '${name}' already exists`);
+        throw new ConflictException(
+          `Offer category with name '${name}' already exists`
+        );
       }
     }
 
@@ -181,12 +209,12 @@ export class OfferCategoryService {
             offers: {
               where: {
                 startDate: { lte: new Date() },
-                endDate: { gte: new Date() }
-              }
-            }
-          }
-        }
-      }
+                endDate: { gte: new Date() },
+              },
+            },
+          },
+        },
+      },
     });
 
     return this.mapToResponseDto(category, category._count.offers);
@@ -198,9 +226,9 @@ export class OfferCategoryService {
       where: { id },
       include: {
         _count: {
-          select: { offers: true }
-        }
-      }
+          select: { offers: true },
+        },
+      },
     });
 
     if (!existingCategory) {
@@ -215,10 +243,12 @@ export class OfferCategoryService {
     }
 
     await this.prisma.offerCategory.delete({
-      where: { id }
+      where: { id },
     });
 
-    return { message: `Offer category '${existingCategory.name}' has been deleted successfully` };
+    return {
+      message: `Offer category '${existingCategory.name}' has been deleted successfully`,
+    };
   }
 
   async getCategoryStats(): Promise<{
@@ -239,49 +269,52 @@ export class OfferCategoryService {
           offers: {
             some: {
               startDate: { lte: now },
-              endDate: { gte: now }
-            }
-          }
-        }
+              endDate: { gte: now },
+            },
+          },
+        },
       }),
       this.prisma.offerCategory.findMany({
         include: {
           _count: {
             select: {
-              offers: true
-            }
+              offers: true,
+            },
           },
           offers: {
             where: {
               startDate: { lte: now },
-              endDate: { gte: now }
-            }
-          }
+              endDate: { gte: now },
+            },
+          },
         },
-        orderBy: { name: 'asc' }
-      })
+        orderBy: { name: "asc" },
+      }),
     ]);
 
-    const categoryDistribution = distribution.map(category => ({
+    const categoryDistribution = distribution.map((category) => ({
       category: category.name,
       totalOffers: category._count.offers,
-      activeOffers: category.offers.length
+      activeOffers: category.offers.length,
     }));
 
     return {
       totalCategories: total,
       categoriesWithActiveOffers: categoriesWithOffers,
-      categoryDistribution
+      categoryDistribution,
     };
   }
 
-  private mapToResponseDto(category: any, offerCount: number): OfferCategoryResponseDto {
+  private mapToResponseDto(
+    category: OfferCategory,
+    offerCount: number
+  ): OfferCategoryResponseDto {
     return {
       id: category.id,
       name: category.name,
       offerCount,
       createdAt: category.createdAt,
-      updatedAt: category.updatedAt
+      updatedAt: category.updatedAt,
     };
   }
 }

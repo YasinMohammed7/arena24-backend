@@ -2,16 +2,17 @@ import {
   Injectable,
   NotFoundException,
   ConflictException,
-} from '@nestjs/common';
-import { CreateAmenityDto } from './dto/create-amenity.dto';
-import { UpdateAmenityDto } from './dto/update-amenity.dto';
-import { PrismaService } from '@/prisma/prisma.service';
-import { promises as fs } from 'fs';
-import * as path from 'path';
+} from "@nestjs/common";
+import { CreateAmenityDto } from "./dto/create-amenity.dto";
+import { UpdateAmenityDto } from "./dto/update-amenity.dto";
+import { PrismaService } from "@/prisma/prisma.service";
+import { Prisma } from "@prisma/client";
+import { promises as fs } from "fs";
+import * as path from "path";
 
 @Injectable()
 export class AmenityService {
-  constructor(private prisma: PrismaService) { }
+  constructor(private prisma: PrismaService) {}
 
   async create(createAmenityDto: CreateAmenityDto) {
     try {
@@ -24,9 +25,12 @@ export class AmenityService {
         },
       });
     } catch (error) {
-      if (error.code === 'P2002') {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2002"
+      ) {
         throw new ConflictException(
-          `Amenity with name '${createAmenityDto.name}' already exists`,
+          `Amenity with name '${createAmenityDto.name}' already exists`
         );
       }
       throw error;
@@ -43,7 +47,7 @@ export class AmenityService {
           select: { locations: true },
         },
       },
-      orderBy: { name: 'asc' },
+      orderBy: { name: "asc" },
     });
   }
 
@@ -91,21 +95,27 @@ export class AmenityService {
       });
 
       if (updateAmenityDto.iconUrl && amenity.iconUrl) {
-        const absPath = path.join(process.cwd(), 'public', amenity.iconUrl);
+        const absPath = path.join(process.cwd(), "public", amenity.iconUrl);
         try {
           await fs.unlink(absPath);
         } catch (err) {
-          if (err.code !== 'ENOENT') {
-            console.error('Error deleting old file:', err);
+          // Ignore "file not found"; surface anything else.
+          const code =
+            err instanceof Error && "code" in err ? err.code : undefined;
+          if (code !== "ENOENT") {
+            console.error("Error deleting old file:", err);
           }
         }
       }
 
       return updated;
     } catch (error) {
-      if (error.code === 'P2002') {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2002"
+      ) {
         throw new ConflictException(
-          `Amenity with name '${updateAmenityDto.name}' already exists`,
+          `Amenity with name '${updateAmenityDto.name}' already exists`
         );
       }
       throw error;
@@ -122,7 +132,7 @@ export class AmenityService {
 
     if (locationCount > 0) {
       throw new ConflictException(
-        `Cannot delete amenity '${amenity.name}' as it is being used by ${locationCount} location(s). Remove it from all locations first.`,
+        `Cannot delete amenity '${amenity.name}' as it is being used by ${locationCount} location(s). Remove it from all locations first.`
       );
     }
 

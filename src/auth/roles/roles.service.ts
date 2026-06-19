@@ -2,9 +2,10 @@ import {
   Injectable,
   NotFoundException,
   ConflictException,
-} from '@nestjs/common';
-import { PrismaService } from '@/prisma/prisma.service';
-import { CreateRoleDto } from './dto/create-role.dto';
+} from "@nestjs/common";
+import { PrismaService } from "@/prisma/prisma.service";
+import { CreateRoleDto } from "./dto/create-role.dto";
+import { Prisma } from "../../../generated/prisma";
 
 @Injectable()
 export class RolesService {
@@ -17,12 +18,15 @@ export class RolesService {
         data: createRoleDto,
       });
       return {
-        message: 'Role created successfully',
+        message: "Role created successfully",
         data: role,
       };
     } catch (error) {
-      if (error.code === 'P2002') {
-        throw new ConflictException('Role name already exists');
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2002"
+      ) {
+        throw new ConflictException("Role name already exists");
       }
       throw error;
     }
@@ -67,7 +71,7 @@ export class RolesService {
     });
 
     if (!role) {
-      throw new NotFoundException('Role not found');
+      throw new NotFoundException("Role not found");
     }
 
     return role;
@@ -83,13 +87,13 @@ export class RolesService {
     });
 
     if (!role) {
-      throw new NotFoundException('Role not found');
+      throw new NotFoundException("Role not found");
     }
 
     // Check if role has users assigned to it
     if (role.userRoles.length > 0) {
       throw new ConflictException(
-        'Cannot delete role that has users assigned to it',
+        "Cannot delete role that has users assigned to it"
       );
     }
 
@@ -97,7 +101,7 @@ export class RolesService {
       where: { id },
     });
 
-    return { message: 'Role deleted successfully' };
+    return { message: "Role deleted successfully" };
   }
 
   // Assignment methods
@@ -105,13 +109,13 @@ export class RolesService {
     // Check if user exists
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) {
-      throw new NotFoundException('User not found');
+      throw new NotFoundException("User not found");
     }
 
     // Check if role exists
     const role = await this.prisma.role.findUnique({ where: { id: roleId } });
     if (!role) {
-      throw new NotFoundException('Role not found');
+      throw new NotFoundException("Role not found");
     }
 
     // Check if assignment already exists
@@ -122,7 +126,7 @@ export class RolesService {
     });
 
     if (existingAssignment) {
-      throw new ConflictException('User already has this role');
+      throw new ConflictException("User already has this role");
     }
 
     const userRole = await this.prisma.userRole.create({
@@ -134,7 +138,7 @@ export class RolesService {
     });
 
     return {
-      message: 'Role assigned to user successfully',
+      message: "Role assigned to user successfully",
       data: userRole,
     };
   }
@@ -165,7 +169,7 @@ export class RolesService {
     });
 
     if (!userRole) {
-      throw new NotFoundException('User role assignment not found');
+      throw new NotFoundException("User role assignment not found");
     }
 
     await this.prisma.userRole.delete({
@@ -175,7 +179,7 @@ export class RolesService {
     });
 
     return {
-      message: 'Role removed from user successfully',
+      message: "Role removed from user successfully",
     };
   }
 }

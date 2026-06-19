@@ -8,24 +8,14 @@ import {
   Delete,
   UseGuards,
   ParseIntPipe,
-  Request,
-} from '@nestjs/common';
-import { ReservationService } from './reservation.service';
-import { CreateReservationDto } from './dto/create-reservation.dto';
-import { UpdateReservationDto } from './dto/update-reservation.dto';
-import { JwtAuthGuard } from '@/auth/guards/jwt-auth.guard';
+} from "@nestjs/common";
+import { ReservationService } from "./reservation.service";
+import { CreateReservationDto } from "./dto/create-reservation.dto";
+import { UpdateReservationDto } from "./dto/update-reservation.dto";
+import { JwtAuthGuard } from "@/auth/guards/jwt-auth.guard";
+import { CurrentUser } from "@/auth/decorators/current-user.decorator";
 
-interface AuthenticatedRequest extends Request {
-  user: {
-    id: string;
-    email: string;
-    name: string;
-    phone: string;
-    [key: string]: any;
-  };
-}
-
-@Controller('business/reservation')
+@Controller("business/reservation")
 @UseGuards(JwtAuthGuard)
 export class ReservationController {
   constructor(private readonly reservationService: ReservationService) {}
@@ -33,9 +23,9 @@ export class ReservationController {
   @Post()
   create(
     @Body() createReservationDto: CreateReservationDto,
-    @Request() req: AuthenticatedRequest,
+    @CurrentUser("id") userId: string
   ) {
-    return this.reservationService.create(createReservationDto, req.user);
+    return this.reservationService.create(createReservationDto, userId);
   }
 
   @Get()
@@ -43,36 +33,36 @@ export class ReservationController {
     return this.reservationService.findAll();
   }
 
-  @Get('by-event/:eventId')
-  findByEvent(@Param('eventId', ParseIntPipe) eventId: number) {
+  @Get("by-event/:eventId")
+  findByEvent(@Param("eventId", ParseIntPipe) eventId: number) {
     return this.reservationService.findByEvent(eventId);
   }
 
-  @Get('by-location/:locationId')
-  findByLocation(@Param('locationId', ParseIntPipe) locationId: number) {
+  @Get("by-location/:locationId")
+  findByLocation(@Param("locationId", ParseIntPipe) locationId: number) {
     return this.reservationService.findByLocation(locationId);
   }
 
-  @Get('by-user/:userId')
-  findByUser(@Param('userId') userId: string) {
+  @Get("by-user/:userId")
+  findByUser(@Param("userId") userId: string) {
     return this.reservationService.findByUser(userId);
   }
 
-  @Get(':id')
-  findOne(@Param('id', ParseIntPipe) id: number) {
+  @Get(":id")
+  findOne(@Param("id", ParseIntPipe) id: number) {
     return this.reservationService.findOne(id);
   }
 
-  @Patch(':id')
+  @Patch(":id")
   update(
-    @Param('id', ParseIntPipe) id: number,
-    @Body() updateReservationDto: UpdateReservationDto,
+    @Param("id", ParseIntPipe) id: number,
+    @Body() updateReservationDto: UpdateReservationDto
   ) {
     return this.reservationService.update(id, updateReservationDto);
   }
 
-  @Delete(':id')
-  remove(@Param('id', ParseIntPipe) id: number) {
+  @Delete(":id")
+  remove(@Param("id", ParseIntPipe) id: number) {
     return this.reservationService.remove(id);
   }
 }

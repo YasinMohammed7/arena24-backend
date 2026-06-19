@@ -69,18 +69,19 @@ $ npx prisma db push                    // Push the schema to the database
 $ npx prisma db seed                    // Seed the database with initial data
 ```
 
-```` bash
+```bash
 npx prisma migrate dev
-````
-```` bash
+```
+
+```bash
 npx prisma generate
-````
+```
 
 ## Api Endpoints
 
 This project includes a simple API endpoint for demonstration purposes. You can access the endpoint by sending a POST request to `/api/register`. The endpoint will return a greeting message.
 
-````
+```
 | Method  | Endpoint                                                          | Description                                        |
 |---------|-------------------------------------------------------------------|----------------------------------------------------|
 | POST    | /api/auth/send-verification                                       | Returns a verification code                        |
@@ -189,47 +190,58 @@ This project includes a simple API endpoint for demonstration purposes. You can 
 | PATCH   | /api/users/:id                                                    | Updates a user by id                               |
 | DELETE  | /api/users/:id                                                    | Deletes a user by id                               |
 
-````
+```
+
 ## Auth Routes
 
 - Send Verification Code
-````
+
+```
 @post('api/auth/send-verification')
 {
     "contact": "" // Must be a valid email address or phone number
 }
-````
+```
+
 You will receive a success message indicating that a verification code has been sent to the provided email address.
-````
+
+```
 {
     "message": "Verification code sent successfully"
 }
-````
+```
+
 - Verify Code
-````
+
+```
 @post('api/auth/verify-code')
 {
     "contact": "", // Must be a valid email address
     "code": "" // Verification code sent to the email
 }
-````
+```
+
 You will receive a success message if the code is valid.
-````
+
+```
 {
     "message": "Verification code is valid",
     "valid": true
 }
-````
+```
+
 If the code is invalid, you will receive an error message.
-````
+
+```
 {
     "message": "Invalid or expired verification code",
     "valid": false
 }
-````
+```
 
 - Register
-````
+
+```
 @post('api/auth/register')
 
 {
@@ -238,9 +250,11 @@ If the code is invalid, you will receive an error message.
     "phone": "", // Unique must be 10 to 15 digits and may start with a plus sign
     "password": "Pass123" // Must contain at least one uppercase letter, one lowercase letter, and one number, minimum 6 characters
 }
-````
+```
+
 You will receive
-````
+
+```
 {
     "message": "User created successfully",
     "data": {
@@ -253,18 +267,22 @@ You will receive
         "updatedAt": "2025-08-07T11:33:49.525Z"
     }
 }
-````
+```
+
 - Login
-````
+
+```
 @post('api/auth/login')
 
 {
     "email": "",
     "password": ""
 }
-````
+```
+
 You will receive a JWT token upon successful login and refresh token, which you can use for subsequent requests that require authentication.
-````
+
+```
 {
     "message": "Login successful",
     "data": {
@@ -279,75 +297,95 @@ You will receive a JWT token upon successful login and refresh token, which you 
     "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIyMDhiNmQ1MS02YzY3LTQ1OTYtOTE3OS03MDMyOTE4MGU1ODUiLCJlbWFpbCI6ImZlcnlAbHpmLnJvIiwiaWF0IjoxNzU0NTYyNzE2LCJleHAiOjE3NTQ1NjM2MTZ9.Dg2CWfdU8cuPbnWt4lUP8Yi10G6TunzmS076DDvBD74",
     "refresh_token": "25eddbb1-b608-4654-ab64-849739d51fc2"
 }
-````
+```
+
 - Refresh Token
-````
+
+```
 @post('api/auth/refresh-token')
 
 {
     "refreshToken": "here goes your refresh token"
 }
-````
+```
+
 You will receive a new JWT token upon successful refresh and new refresh token.
-````
+
+```
 {
     "message": "Tokens refreshed successfully",
     "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIyMDhiNmQ1MS02YzY3LTQ1OTYtOTE3OS03MDMyOTE4MGU1ODUiLCJlbWFpbCI6ImZlcnlAbHpmLnJvIiwiaWF0IjoxNzU0NTY0MjIyLCJleHAiOjE3NTQ1NjUxMjJ9.OGerIRQTXL_EvYfar4HMVs6nQ30vPR-6XnuD6M0qe7A",
     "refresh_token": "099f1999-6a92-469f-8fc6-a5801081717f"
 }
-````
+```
+
 - Logout
-````
+
+```
 @post('api/auth/logout')
 
 {
     "refreshToken": "here goes your refresh token"
 }
-````
+```
+
 You will receive a success message upon successful logout.
-````
+
+```
 {
     "message": "Logout successful"
 }
-````
+```
+
 - Forgot Password
-````
+
+```
 @post('api/auth/forgot-password')
 
 {
     "email": "
 }
-````
+```
+
 You will receive a success message indicating that a password reset link has been sent to the provided email address.
-````
+
+```
 {
     "message": "If the email exists, a password reset link has been sent"
 }
-````
+```
+
 - Reset Password
-````
+
+```
 @post('api/auth/reset-password')
 
 {
     "token": "ac4f27d7824b11aa963393098eb51d79f034ae5bc4d28572d737d266a5f599e4",
     "password": "NewPassword"
 }
-````
+```
+
 You will receive a success message indicating that the password has been reset successfully.
-````
+
+```
 {
     "message": "Password reset successful"
 }
-````
+```
+
 ## Roles
 
 - Roles get all
-````
+
+```
 @get('api/roles/roles')
 
-````
+```
+
 You will receive a list of all roles with users attached.
-````
+
+```
 {
     [
         {
@@ -375,16 +413,20 @@ You will receive a list of all roles with users attached.
         }
     ]
 }
-````
+```
+
 - Roles create
-````
+
+```
 @post('api/roles/roles')
 {
     "name": "PLATFORM_ROOT" // Unique role name
 }
-````
+```
+
 You will receive a success message indicating that the role has been created.
-````
+
+```
 {
     "message": "Role created successfully",
     "data": {
@@ -392,13 +434,17 @@ You will receive a success message indicating that the role has been created.
         "name": "PLATFORM_ROOT"
     }
 }
-````
+```
+
 - Roles get by id
-````
+
+```
 @get('api/roles/roles/:id')
-````
+```
+
 You will receive a role by its ID.
-````
+
+```
 {
     "id": "2002bf01-fec7-42e3-b9fb-1bb24e31fee6",
     "name": "PLATFORM_ROOT",
@@ -416,28 +462,36 @@ You will receive a role by its ID.
         }
     ]
 }
-````
+```
+
 - Roles delete by id
-````
+
+```
 @delete('api/roles/role/:id')
-````
+```
+
 You will receive a success message indicating that the role has been deleted.
-````
+
+```
 {
     "message": "Role deleted successfully"
 }
-````
+```
+
 - Roles assign role to user
-````
+
+```
 @post('api/roles/assign-role')
 
 {
     "userId": "aa967464-52c7-4ecc-85dc-4aa7743907c3", // User ID to assign the role
     "roleId": "2002bf01-fec7-42e3-b9fb-1bb24e31fee6" // Role ID to assign
 }
-````
+```
+
 You will receive a success message indicating that the role has been assigned to the user.
-````
+
+```
 {
     "message": "Role assigned to user successfully",
     "data": {
@@ -455,26 +509,31 @@ You will receive a success message indicating that the role has been assigned to
         }
     }
 }
-````
+```
+
 - Roles delete role from user
-````
+
+```
 @delete('api/roles/assign-role/:userId/:roleId')
-````
+```
+
 You will receive a success message indicating that the role has been deleted from the user.
-````
+
+```
 {
     "message": "Role removed from user successfully"
 }
-````
+```
 
 - Roles get user roles
 
-````
+```
 @get('api/roles/users/:userId/roles')
-````
+```
+
 You will receive a list of roles assigned to the user.
 
-````
+```
 [
     {
         "userId": "aa967464-52c7-4ecc-85dc-4aa7743907c3",
@@ -497,13 +556,17 @@ You will receive a list of roles assigned to the user.
         }
     }
 ]
-````
+```
+
 - Permissions
-````
+
+```
 @get('api/permissions/permissions')
-````
+```
+
 You will receive a list of all permissions.
-````
+
+```
 [
     {
         "id": "fa227944-b778-4250-9d6f-443a3c0d6a6c",
@@ -569,16 +632,20 @@ You will receive a list of all permissions.
         "rolePermissions": []
     }
 ]
-````
+```
+
 - Permissions create
-````
+
+```
 @post('api/permissions/permissions')
 {
     "name": "read:users" // Unique permission name
 }
-````
+```
+
 You will receive a success message indicating that the permission has been created.
-`````
+
+```
 {
     "message": "Permission created successfully",
     "data": {
@@ -586,17 +653,21 @@ You will receive a success message indicating that the permission has been creat
         "name": "create:all"
     }
 }
-`````
+```
+
 - Permissions assign permission to role
-````
+
+```
 @post('api/permissions/assign-permission')
 {
     "roleId": "2002bf01-fec7-42e3-b9fb-1bb24e31fee6", // Role ID to assign the permission
     "permissionId": "da676fe2-e3c8-4f41-8f35-4b2cd07080d6" // Permission ID to assign
 }
-````
+```
+
 You will receive a success message indicating that the permission has been assigned to the role.
-````
+
+```
 {
     "message": "Permission assigned to role successfully",
     "data": {
@@ -612,27 +683,35 @@ You will receive a success message indicating that the permission has been assig
         }
     }
 }
-````
+```
+
 - Permissions delete permission from role
-````
+
+```
 @delete('api/permissions/assign-permission/:roleId/:permissionId')
-````
+```
+
 You will receive a success message indicating that the permission has been deleted from the role.
-`````
+
+```
 {
     "message": "Permission removed from role successfully"
 }
-`````
+```
+
 - Permissions assign permission to user
-````
+
+```
 @post('api/permissions/assign-user-permission')
 {
     "userId": "aa967464-52c7-4ecc-85dc-4aa7743907c3", // User ID to assign the permission
     "permissionId": "da676fe2-e3c8-4f41-8f35-4b2cd07080d6" // Permission ID to assign
 }
-````
+```
+
 You will receive a success message indicating that the permission has been assigned to the user.
-````
+
+```
 {
     "message": "Permission assigned to user successfully",
     "data": {
@@ -650,23 +729,31 @@ You will receive a success message indicating that the permission has been assig
         }
     }
 }
-````
+```
+
 - Permissions delete permission from user
-````
+
+```
 @delete('api/permissions/assign-user-permission/:userId/:permissionId')
-````
+```
+
 You will receive a success message indicating that the permission has been deleted from the user.
-`````
+
+```
 {
     "message": "Permission removed from user successfully"
 }
-`````
+```
+
 ## Permissions for Users
-````
+
+```
 @get('api/permissions/users/:userId/direct-permissions')
-````
+```
+
 You will receive a list of direct permissions assigned to the user.
-`````
+
+```
 [
     {
         "userId": "aa967464-52c7-4ecc-85dc-4aa7743907c3",
@@ -687,13 +774,17 @@ You will receive a list of direct permissions assigned to the user.
         }
     }
 ]
-`````
+```
+
 - Permissions get user permission by id
-````
+
+```
 @get('api/permissions/users/:userId/permissions')
-````
+```
+
 You will receive a permission by its ID.
-`````
+
+```
 {
     "id": "da676fe2-e3c8-4f41-8f35-4b2cd07080d6",
     "name": "read:own",
@@ -711,14 +802,19 @@ You will receive a permission by its ID.
         }
     ]
 }
-`````
+```
+
 ## Business
+
 - Business get all
-````
+
+```
 @get('api/business')
-````
+```
+
 You will receive a list of all businesses for the user or all businesses.
-````
+
+```
 {
     "businesses": [
         {
@@ -757,17 +853,21 @@ You will receive a list of all businesses for the user or all businesses.
     "page": 1,
     "limit": 10
 }
-````
+```
+
 - Business create
-````
+
+```
 @post('api/business')
 {
     "name": "Arena24 Concept",
     "description": "Arena 24"
 }
-````
+```
+
 You will receive a success message indicating that the business has been created.
-`````
+
+```
 {
     "message": "Business created successfully",
     "data": {
@@ -787,13 +887,17 @@ You will receive a success message indicating that the business has been created
         }
     }
 }
-`````
+```
+
 - Business get my businesses
-````
+
+```
 @get('api/business/my-businesses')
-````
+```
+
 You will receive a list of all businesses for the user.
-`````
+
+```
 [
     {
         "id": "1eabad70-3e34-4514-901b-cec083bd91c0",
@@ -823,13 +927,17 @@ You will receive a list of all businesses for the user.
         ]
     }
 ]
-`````
+```
+
 - Business get by id
-````
+
+```
 @get('api/business/business/:id')
-````
+```
+
 You will receive a business by its ID.
-`````
+
+```
 {
     "id": "1eabad70-3e34-4514-901b-cec083bd91c0",
     "name": "Arena24 Concept",
@@ -900,30 +1008,38 @@ You will receive a business by its ID.
         "userRoles": 0
     }
 }
-`````
+```
+
 - Business get stats by id
-````
+
+```
 @get('api/business/business/:id/stats')
-````
+```
+
 You will receive stats for a business by its ID.
-`````
+
+```
 {
     "totalLocations": 2,
     "activeLocations": 2,
     "totalStaff": 0,
     "businessAge": 1
 }
-`````
+```
+
 - Business update by id
-````
+
+```
 @patch('api/business/business/:id')
 {
     "name": "Updated Business Name",
     "description": "Updated Business Description"
 }
-````
+```
+
 You will receive a success message indicating that the business has been updated.
-`````
+
+```
 {
     "message": "Business updated successfully",
     "data": {
@@ -944,22 +1060,27 @@ You will receive a success message indicating that the business has been updated
         }
     }
 }
-`````
+```
+
 - Business delete by id
-````
+
+```
 @delete('api/business/business/:id')
-````
+```
+
 You will receive a success message indicating that the business has been deleted.
-`````
+
+```
 {
     "message": "Business deleted successfully"
 }
-`````
+```
 
 ## Offers
+
 Oferte globale sau legate de o locatie
 
-````
+```
 // Example queries supported:
 // ?activeOnly=true - Show only currently active offers
 // ?globalOnly=true - Show only global offers (no location)
@@ -967,38 +1088,44 @@ Oferte globale sau legate de o locatie
 // ?minDiscount=20 - Only offers with 20%+ discount
 // ?name=pizza - Search offers containing "pizza"
 // ?startDate=2025-08-01&endDate=2025-12-31 - Date range filtering
-````
+```
 
 ## Roles and Permissions usage
 
 Flexible @Authorize Decorator
-````
+
+```
 @Authorize({
 roles: ['PLATFORM_ADMIN', 'BUSINESS_OWNER'],
 permissions: ['read:users'],
 operator: 'OR' // Default is 'OR'
 })
-````
+```
 
 @HasRoleOr(['ADMIN'], ['read:users']) - Has ADMIN role OR read:users permission
 @RequireRole('ADMIN') - Must have ADMIN role
 @RequirePermission('read:users') - Must have read:users permission
 
 Multiple roles OR permission:
-````
+
+```
 @Authorize({
 roles: ['PLATFORM_ADMIN', 'BUSINESS_OWNER', 'PLATFORM_MANAGER'],
 permissions: ['read:own']
 })
-````
+```
+
 Convenience syntax:
-````
+
+```
 @HasRoleOr(['BUSINESS_OWNER', 'PLATFORM_MANAGER'], ['read:own'])
-````
+```
+
 Permission-only:
-````
+
+```
 @RequirePermission('update:user')
-````
+```
 
 Check out a few resources that may come in handy when working with NestJS:
 

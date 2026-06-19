@@ -1,9 +1,9 @@
-import { IsNotEmpty, IsString, IsInt, Matches } from 'class-validator';
-import { Transform } from 'class-transformer';
+import { IsNotEmpty, IsString, IsInt, Matches } from "class-validator";
+import { Type } from "class-transformer";
 
 export class CreateScheduleDto {
+  @Type(() => Number)
   @IsInt()
-  @Transform(({ value }) => parseInt(value))
   locationId: number;
 
   @IsNotEmpty()
@@ -13,14 +13,14 @@ export class CreateScheduleDto {
   @IsNotEmpty()
   @IsString()
   @Matches(/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/, {
-    message: 'startTime must be in HH:MM format',
+    message: "startTime must be in HH:MM format",
   })
   startTime: string;
 
   @IsNotEmpty()
   @IsString()
   @Matches(/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/, {
-    message: 'endTime must be in HH:MM format',
+    message: "endTime must be in HH:MM format",
   })
   endTime: string;
 }

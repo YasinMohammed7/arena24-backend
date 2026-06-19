@@ -1,10 +1,10 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { PrismaService } from '@/prisma/prisma.service';
-import { Prisma } from '@prisma/client';
-import { ParsedQueryOfferDto } from './dto/query-offer.dto';
-import { OfferResponseDto } from './dto/offer-response.dto';
-import { QueryOfferCategoryDto } from '@/business/offer-category/dto/query-offer-category.dto';
-import { OfferCategoryResponseDto } from '@/business/offer-category/dto/offer-category-response.dto';
+import { Injectable, NotFoundException } from "@nestjs/common";
+import { PrismaService } from "@/prisma/prisma.service";
+import { Prisma, OfferCategory } from "@prisma/client";
+import { ParsedQueryOfferDto } from "./dto/query-offer.dto";
+import { OfferResponseDto } from "./dto/offer-response.dto";
+import { QueryOfferCategoryDto } from "@/business/offer-category/dto/query-offer-category.dto";
+import { OfferCategoryResponseDto } from "@/business/offer-category/dto/offer-category-response.dto";
 
 // Type for offer with included relations
 type OfferWithRelations = Prisma.OfferGetPayload<{
@@ -28,7 +28,7 @@ type OfferWithRelations = Prisma.OfferGetPayload<{
 
 @Injectable()
 export class ClientService {
-  constructor(private prisma: PrismaService) { }
+  constructor(private prisma: PrismaService) {}
 
   async findAllActiveLocations() {
     return this.prisma.location.findMany({
@@ -125,11 +125,11 @@ export class ClientService {
             },
           },
           orderBy: {
-            createdAt: 'desc',
+            createdAt: "desc",
           },
         },
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdAt: "desc" },
     });
   }
 
@@ -196,7 +196,7 @@ export class ClientService {
             imageUrl: true,
           },
           orderBy: {
-            date: 'asc',
+            date: "asc",
           },
         },
         Offer: {
@@ -232,26 +232,25 @@ export class ClientService {
             },
           },
           orderBy: {
-            createdAt: 'desc',
+            createdAt: "desc",
           },
         },
       },
     });
 
     if (!location) {
-      throw new NotFoundException('Location not found or not active');
+      throw new NotFoundException("Location not found or not active");
     }
 
     const media = await this.prisma.media.findMany({
-      where: { modelType: 'Location', modelId: id.toString() },
-      orderBy: { createdAt: 'asc' },
+      where: { modelType: "Location", modelId: id.toString() },
+      orderBy: { createdAt: "asc" },
     });
 
     return {
       ...location,
       media,
     };
-
   }
 
   async findAllActiveEvents() {
@@ -297,7 +296,7 @@ export class ClientService {
           select: { reservations: true },
         },
       },
-      orderBy: { date: 'asc' },
+      orderBy: { date: "asc" },
     });
   }
 
@@ -348,7 +347,7 @@ export class ClientService {
     });
 
     if (!event) {
-      throw new NotFoundException('Event not found or not available');
+      throw new NotFoundException("Event not found or not available");
     }
 
     return event;
@@ -451,7 +450,7 @@ export class ClientService {
         where,
         skip,
         take: limit,
-        orderBy: [{ endDate: 'asc' }, { createdAt: 'desc' }],
+        orderBy: [{ endDate: "asc" }, { createdAt: "desc" }],
         include: {
           location: {
             select: {
@@ -474,7 +473,7 @@ export class ClientService {
 
     const totalPages = Math.ceil(total / limit);
     const mappedOffers = offers.map((offer) =>
-      this.mapOfferToResponseDto(offer),
+      this.mapOfferToResponseDto(offer)
     );
 
     return {
@@ -527,12 +526,12 @@ export class ClientService {
     const { name, page = 1, limit = 10 } = queryDto;
     const skip = (page - 1) * limit;
 
-    const where: any = {};
+    const where: Prisma.OfferCategoryWhereInput = {};
 
     // Filter by name (partial match)
     if (name) {
       where.name = {
-        contains: name
+        contains: name,
       };
     }
 
@@ -541,25 +540,25 @@ export class ClientService {
         where,
         skip,
         take: limit,
-        orderBy: { name: 'asc' },
+        orderBy: { name: "asc" },
         include: {
           _count: {
             select: {
               offers: {
                 where: {
                   startDate: { lte: new Date() },
-                  endDate: { gte: new Date() }
-                }
-              }
-            }
-          }
-        }
+                  endDate: { gte: new Date() },
+                },
+              },
+            },
+          },
+        },
       }),
-      this.prisma.offerCategory.count({ where })
+      this.prisma.offerCategory.count({ where }),
     ]);
 
     const totalPages = Math.ceil(total / limit);
-    const mappedCategories = categories.map(category =>
+    const mappedCategories = categories.map((category) =>
       this.mapToResponseDto(category, category._count.offers)
     );
 
@@ -568,7 +567,7 @@ export class ClientService {
       total,
       page,
       limit,
-      totalPages
+      totalPages,
     };
   }
 
@@ -581,12 +580,12 @@ export class ClientService {
             offers: {
               where: {
                 startDate: { lte: new Date() },
-                endDate: { gte: new Date() }
-              }
-            }
-          }
-        }
-      }
+                endDate: { gte: new Date() },
+              },
+            },
+          },
+        },
+      },
     });
 
     if (!category) {
@@ -596,14 +595,17 @@ export class ClientService {
     return this.mapToResponseDto(category, category._count.offers);
   }
 
-  private mapToResponseDto(category: any, offerCount: number): OfferCategoryResponseDto {
+  private mapToResponseDto(
+    category: OfferCategory,
+    offerCount: number
+  ): OfferCategoryResponseDto {
     return {
       id: category.id,
       name: category.name,
       offerCount,
       createdAt: category.createdAt,
-      updatedAt: category.updatedAt
-    }; 
+      updatedAt: category.updatedAt,
+    };
   }
 
   private mapOfferToResponseDto(offer: OfferWithRelations): OfferResponseDto {
@@ -625,6 +627,4 @@ export class ClientService {
       updatedAt: offer.updatedAt,
     };
   }
-
-
 }

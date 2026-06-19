@@ -1,12 +1,12 @@
-import { SetMetadata } from '@nestjs/common';
+import { SetMetadata } from "@nestjs/common";
 
 export interface AuthorizationRequirement {
   roles?: string[];
   permissions?: string[];
-  operator?: 'AND' | 'OR'; // Default is 'OR'
+  operator?: "AND" | "OR"; // Default is 'OR'
 }
 
-export const AUTHORIZATION_KEY = 'authorization';
+export const AUTHORIZATION_KEY = "authorization";
 
 /**
  * Flexible authorization decorator that supports:
@@ -24,10 +24,10 @@ export const Authorize = (requirement: AuthorizationRequirement) =>
   SetMetadata(AUTHORIZATION_KEY, requirement);
 
 export const HasRoleOr = (roles: string[], permissions: string[]) =>
-  Authorize({ roles, permissions, operator: 'OR' });
+  Authorize({ roles, permissions, operator: "OR" });
 
 export const HasRoleAnd = (roles: string[], permissions: string[]) =>
-  Authorize({ roles, permissions, operator: 'AND' });
+  Authorize({ roles, permissions, operator: "AND" });
 
 export const RequireRole = (...roles: string[]) => Authorize({ roles });
 

@@ -1,6 +1,6 @@
-import { Injectable, INestApplication } from '@nestjs/common';
-import { SpelunkerModule } from 'nestjs-spelunker';
-import * as fs from 'node:fs';
+import { Injectable, INestApplication } from "@nestjs/common";
+import { SpelunkerModule } from "nestjs-spelunker";
+import * as fs from "node:fs";
 
 @Injectable()
 export class AppGraphService {
@@ -9,8 +9,8 @@ export class AppGraphService {
   constructor() {
     // Enable/disable based on environment variable or configuration
     this.isEnabled =
-      process.env.ENABLE_APP_GRAPH === 'true' ||
-      process.env.NODE_ENV === 'development';
+      process.env.ENABLE_APP_GRAPH === "true" ||
+      process.env.NODE_ENV === "development";
   }
 
   /**
@@ -21,7 +21,7 @@ export class AppGraphService {
    */
   generateAppGraph(
     app: INestApplication,
-    outputPath: string = 'app.module.mmd',
+    outputPath: string = "app.module.mmd"
   ): string | null {
     if (!this.isEnabled) {
       return null;
@@ -32,7 +32,7 @@ export class AppGraphService {
       const root = SpelunkerModule.graph(tree);
       const edges = SpelunkerModule.findGraphEdges(root);
 
-      let graph = 'graph LR\n';
+      let graph = "graph LR\n";
       edges.forEach(({ from, to }) => {
         graph += `  ${from.module.name} --> ${to.module.name}\n`;
       });
@@ -42,7 +42,7 @@ export class AppGraphService {
 
       return graph;
     } catch (error) {
-      console.error('Error generating app graph:', error);
+      console.error("Error generating app graph:", error);
       return null;
     }
   }

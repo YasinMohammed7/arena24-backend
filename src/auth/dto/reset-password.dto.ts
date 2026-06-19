@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsString, Matches, MinLength } from 'class-validator';
+import { IsNotEmpty, IsString, Matches, MinLength } from "class-validator";
 
 export class ResetPasswordDto {
   @IsString()
@@ -8,11 +8,11 @@ export class ResetPasswordDto {
   @IsString()
   @MinLength(6)
   @Matches(
-    /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[a-zA-Z\d!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]{6,}$/,
+    /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[a-zA-Z\d!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]{6,}$/,
     {
       message:
-        'Password must contain at least one uppercase letter, one lowercase letter, one number, and may include special characters.',
-    },
+        "Password must contain at least one uppercase letter, one lowercase letter, one number, and may include special characters.",
+    }
   )
   password: string;
 }

@@ -6,18 +6,20 @@ import {
   GoneException,
   UnprocessableEntityException,
   ForbiddenException,
-} from '@nestjs/common';
-import { PrismaService } from '@/prisma/prisma.service';
-import { JwtService } from '@nestjs/jwt';
-import * as bcrypt from 'bcryptjs';
-import { RegisterDto } from './dto/register.dto';
-import { LoginDto } from './dto/login.dto';
-import { ForgotPasswordDto } from './dto/forgot-password.dto';
-import { ResetPasswordDto } from './dto/reset-password.dto';
-import * as crypto from 'node:crypto';
-import { RolesService } from './roles/roles.service';
-import { MailService } from '@/mail/mail.service';
-import { SmsService } from '@/sms/sms.service';
+} from "@nestjs/common";
+import { PrismaService } from "@/prisma/prisma.service";
+import { JwtService } from "@nestjs/jwt";
+import { type StringValue } from "ms";
+import * as bcrypt from "bcryptjs";
+import { RegisterDto } from "./dto/register.dto";
+import { LoginDto } from "./dto/login.dto";
+import { ForgotPasswordDto } from "./dto/forgot-password.dto";
+import { ResetPasswordDto } from "./dto/reset-password.dto";
+import { SafeUser } from "./dto/safe-user.dto";
+import * as crypto from "node:crypto";
+import { RolesService } from "./roles/roles.service";
+import { MailService } from "@/mail/mail.service";
+import { SmsService } from "@/sms/sms.service";
 
 @Injectable()
 export class AuthService {
@@ -26,7 +28,7 @@ export class AuthService {
     private jwt: JwtService,
     private rolesService: RolesService, // Inject RolesService
     private mailService: MailService, // Inject MailService for sending emails
-    private smsService: SmsService, // Inject SmsService for sending SMS
+    private smsService: SmsService // Inject SmsService for sending SMS
   ) {}
 
   async sendVerificationCode(contact: string): Promise<{ message: string }> {
@@ -52,7 +54,7 @@ export class AuthService {
     });
 
     // Determine if contact is email or phone and send accordingly
-    const isEmail = contact.includes('@');
+    const isEmail = contact.includes("@");
 
     if (isEmail) {
       // Send via email
@@ -65,13 +67,13 @@ export class AuthService {
     }
 
     return {
-      message: 'Verification code sent successfully',
+      message: "Verification code sent successfully",
     };
   }
 
   async verifyCode(
     contact: string,
-    code: string,
+    code: string
   ): Promise<{ message: string; valid: boolean }> {
     // First, check if a verification code exists for this contact with the provided code (regardless of expiration)
     const verificationRecord = await this.prisma.verificationCode.findFirst({
@@ -83,7 +85,7 @@ export class AuthService {
 
     if (!verificationRecord) {
       // Code doesn't exist for this contact - invalid code
-      throw new UnprocessableEntityException('Invalid verification code');
+      throw new UnprocessableEntityException("Invalid verification code");
     }
 
     // Check if the code is expired
@@ -92,7 +94,7 @@ export class AuthService {
       await this.prisma.verificationCode.delete({
         where: { id: verificationRecord.id },
       });
-      throw new GoneException('Verification code has expired');
+      throw new GoneException("Verification code has expired");
     }
 
     // Code is valid and not expired - delete the used verification code
@@ -101,15 +103,15 @@ export class AuthService {
     });
 
     return {
-      message: 'Verification code is valid',
+      message: "Verification code is valid",
       valid: true,
     };
   }
 
   async register(
-    registerDto: RegisterDto,
-  ): Promise<{ message: string; data: any }> {
-    const { email, password, name, phone } = registerDto;
+    registerDto: RegisterDto
+  ): Promise<{ message: string; data: SafeUser }> {
+    const { email, password, phone } = registerDto;
 
     const userExists = await this.prisma.user.findFirst({
       where: {
@@ -118,7 +120,7 @@ export class AuthService {
     });
 
     if (userExists)
-      throw new ConflictException('Email or phone already taken.');
+      throw new ConflictException("Email or phone already taken.");
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
@@ -138,24 +140,24 @@ export class AuthService {
     } = user;
     // Assign default role to the user after registration
     const clientUserRole = await this.prisma.role.findUnique({
-      where: { name: 'CLIENT_USER' },
+      where: { name: "CLIENT_USER" },
     });
     if (!clientUserRole || !clientUserRole.id) {
-      throw new Error('CLIENT_USER role not found in the database');
+      throw new Error("CLIENT_USER role not found in the database");
     }
 
     // Call assignRoleToUser through rolesService
     await this.rolesService.assignRoleToUser(user.id, clientUserRole.id);
 
     return {
-      message: 'User created successfully',
+      message: "User created successfully",
       data: userWithoutSensitiveFields,
     };
   }
 
   async login(data: LoginDto): Promise<{
     message: string;
-    data: any;
+    data: SafeUser;
     access_token: string;
     refresh_token: string;
   }> {
@@ -164,22 +166,22 @@ export class AuthService {
     });
 
     if (!user || !(await bcrypt.compare(data.password, user.password))) {
-      throw new UnauthorizedException('Invalid credentials');
+      throw new UnauthorizedException("Invalid credentials");
     }
 
     // Check if user is soft deleted
     if (user.deletedAt) {
-      throw new UnauthorizedException('User account no longer exists');
+      throw new UnauthorizedException("User account no longer exists");
     }
 
     // Check if user is active
     if (!user.isActive) {
-      throw new UnauthorizedException('User account is deactivated');
+      throw new UnauthorizedException("User account is deactivated");
     }
 
     const payload = { sub: user.id, email: user.email };
     const accessToken = await this.jwt.signAsync(payload, {
-      expiresIn: process.env.JWT_ACCESS_TOKEN_EXPIRY || '30m', // Token expiration time from env
+      expiresIn: (process.env.JWT_ACCESS_TOKEN_EXPIRY as StringValue) || "30m", // Token expiration time from env
     });
 
     const refreshToken = crypto.randomUUID(); // Generate a random UUID for the refresh token
@@ -194,7 +196,7 @@ export class AuthService {
     } = user;
 
     return {
-      message: 'Login successful',
+      message: "Login successful",
       data: userWithoutSensitiveFields,
       access_token: accessToken,
       refresh_token: refreshToken,
@@ -204,12 +206,12 @@ export class AuthService {
   async storeRefreshToken(userId: string, refreshToken: string) {
     const expirationDate = new Date();
     // Use environment variable for refresh token expiry
-    const expiryTime = process.env.JWT_REFRESH_TOKEN_EXPIRY || '1y';
+    const expiryTime = process.env.JWT_REFRESH_TOKEN_EXPIRY || "1y";
 
-    if (expiryTime.endsWith('y')) {
+    if (expiryTime.endsWith("y")) {
       const years = parseInt(expiryTime.slice(0, -1));
       expirationDate.setFullYear(expirationDate.getFullYear() + years);
-    } else if (expiryTime.endsWith('d')) {
+    } else if (expiryTime.endsWith("d")) {
       const days = parseInt(expiryTime.slice(0, -1));
       expirationDate.setDate(expirationDate.getDate() + days);
     }
@@ -246,7 +248,7 @@ export class AuthService {
     });
 
     if (!storedToken) {
-      throw new ForbiddenException('Invalid or expired refresh token');
+      throw new ForbiddenException("Invalid or expired refresh token");
     }
 
     // Check if user is soft deleted
@@ -255,7 +257,7 @@ export class AuthService {
       await this.prisma.refreshToken.deleteMany({
         where: { userId: storedToken.user.id },
       });
-      throw new UnauthorizedException('User account no longer exists');
+      throw new UnauthorizedException("User account no longer exists");
     }
 
     // Check if user is active
@@ -264,13 +266,13 @@ export class AuthService {
       await this.prisma.refreshToken.deleteMany({
         where: { userId: storedToken.user.id },
       });
-      throw new UnauthorizedException('User account is deactivated');
+      throw new UnauthorizedException("User account is deactivated");
     }
 
     // Generate new access token
     const payload = { sub: storedToken.user.id, email: storedToken.user.email };
     const newAccessToken = await this.jwt.signAsync(payload, {
-      expiresIn: process.env.JWT_ACCESS_TOKEN_EXPIRY || '30m',
+      expiresIn: (process.env.JWT_ACCESS_TOKEN_EXPIRY as StringValue) || "30m",
     });
 
     // Generate new refresh token
@@ -284,7 +286,7 @@ export class AuthService {
     await this.storeRefreshToken(storedToken.user.id, newRefreshToken);
 
     return {
-      message: 'Tokens refreshed successfully',
+      message: "Tokens refreshed successfully",
       access_token: newAccessToken,
       refresh_token: newRefreshToken,
     };
@@ -292,7 +294,7 @@ export class AuthService {
 
   async logout(
     userId: string,
-    refreshToken: string,
+    refreshToken: string
   ): Promise<{ message: string }> {
     // Delete the specific refresh token
     await this.prisma.refreshToken.deleteMany({
@@ -303,12 +305,12 @@ export class AuthService {
     });
 
     return {
-      message: 'Logout successful',
+      message: "Logout successful",
     };
   }
 
   async forgotPassword(
-    forgotPasswordDto: ForgotPasswordDto,
+    forgotPasswordDto: ForgotPasswordDto
   ): Promise<{ message: string }> {
     const { email } = forgotPasswordDto;
 
@@ -316,12 +318,12 @@ export class AuthService {
     if (!user) {
       // Don't reveal if email exists or not for security
       return {
-        message: 'If the email exists, a password reset link has been sent',
+        message: "If the email exists, a password reset link has been sent",
       };
     }
 
     // Generate reset token
-    const resetToken = crypto.randomBytes(32).toString('hex');
+    const resetToken = crypto.randomBytes(32).toString("hex");
     const resetTokenExpiry = new Date();
     resetTokenExpiry.setMinutes(resetTokenExpiry.getMinutes() + 10); // Token expires in 10 min
 
@@ -342,12 +344,12 @@ export class AuthService {
     await this.mailService.sendPasswordResetEmail(email, resetToken);
 
     return {
-      message: 'If the email exists, a password reset link has been sent',
+      message: "If the email exists, a password reset link has been sent",
     };
   }
 
   async resetPassword(
-    resetPasswordDto: ResetPasswordDto,
+    resetPasswordDto: ResetPasswordDto
   ): Promise<{ message: string }> {
     const { token, password } = resetPasswordDto;
 
@@ -365,7 +367,7 @@ export class AuthService {
     });
 
     if (!resetTokenRecord) {
-      throw new BadRequestException('Invalid or expired reset token');
+      throw new BadRequestException("Invalid or expired reset token");
     }
 
     // Hash new password
@@ -388,7 +390,7 @@ export class AuthService {
     });
 
     return {
-      message: 'Password reset successful',
+      message: "Password reset successful",
     };
   }
 }

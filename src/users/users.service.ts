@@ -2,20 +2,36 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
-} from '@nestjs/common';
-import { PrismaService } from '@/prisma/prisma.service';
-import { UpdateUserDto } from './dto/update-user.dto';
-import * as bcrypt from 'bcryptjs';
-import { applyOwnershipFilter } from '@/common/ownership.util';
-import { promises as fs } from 'fs';
-import * as path from 'path';
+} from "@nestjs/common";
+import { PrismaService } from "@/prisma/prisma.service";
+import { UpdateUserDto } from "./dto/update-user.dto";
+import * as bcrypt from "bcryptjs";
+import { applyOwnershipFilter } from "@/common/ownership.util";
+import { promises as fs } from "fs";
+import * as path from "path";
+import { Prisma } from "@prisma/client";
+import { Request } from "express";
+import { AuthUser } from "@/auth/decorators/current-user.decorator";
 
+/**
+ * Request shape consumed by `findAll`: the JWT strategy attaches `user` and the
+ * AuthorizationGuard attaches `authScope` (used for service-level filtering).
+ * Mirrors the controller's `RequestWithAuthScope`.
+ */
+type RequestWithAuthScope = Request & {
+  user: AuthUser;
+  authScope?: {
+    roles: string[];
+    permissions?: string[];
+    grantedPermission: string | null;
+  };
+};
 
 @Injectable()
 export class UsersService {
-  constructor(private readonly prisma: PrismaService) { }
+  constructor(private readonly prisma: PrismaService) {}
 
-  async findAll(req: any) {
+  async findAll(req: RequestWithAuthScope) {
     // console.log('=== SERVICE DEBUG ===');
     // console.log('req.authScope:', req.authScope);
     // console.log('req.authScope?.grantedPermission:', req.authScope?.grantedPermission);
@@ -25,9 +41,9 @@ export class UsersService {
     const user = req.user;
 
     // Get the actual permission granted by the authorization guard from the route decorator
-    const scope = req.authScope?.grantedPermission || 'read:own';
+    const scope = req.authScope?.grantedPermission || "read:own";
 
-    const where = applyOwnershipFilter({}, user, scope, 'ownerId');
+    const where = applyOwnershipFilter({}, user, scope, "ownerId");
 
     return this.prisma.user.findMany({
       where,
@@ -47,13 +63,13 @@ export class UsersService {
 
   async findOne(
     id: string,
-    user: any,
-    scope: 'own' | 'any',
-    includeDeleted = false,
+    user: AuthUser,
+    scope: "own" | "any",
+    includeDeleted = false
   ) {
-    const where: any = { id };
+    const where: Prisma.UserWhereInput = { id };
 
-    if (scope === 'own') {
+    if (scope === "own") {
       // Users can only see their own data or users they own
       where.OR = [{ id: user.id }, { ownerId: user.id }];
     }
@@ -78,17 +94,17 @@ export class UsersService {
     });
 
     if (!foundUser) {
-      throw new NotFoundException('User not found');
+      throw new NotFoundException("User not found");
     }
 
     return foundUser;
   }
 
-  async activateUser(id: string, user: any, scope: 'own' | 'any') {
+  async activateUser(id: string, user: AuthUser, scope: "own" | "any") {
     const targetUser = await this.findOne(id, user, scope);
 
     if (targetUser.isActive) {
-      throw new BadRequestException('User is already active');
+      throw new BadRequestException("User is already active");
     }
 
     return this.prisma.user.update({
@@ -105,11 +121,11 @@ export class UsersService {
     });
   }
 
-  async deactivateUser(id: string, user: any, scope: 'own' | 'any') {
+  async deactivateUser(id: string, user: AuthUser, scope: "own" | "any") {
     const targetUser = await this.findOne(id, user, scope);
 
     if (!targetUser.isActive) {
-      throw new BadRequestException('User is already inactive');
+      throw new BadRequestException("User is already inactive");
     }
 
     return this.prisma.user.update({
@@ -126,11 +142,11 @@ export class UsersService {
     });
   }
 
-  async softDeleteUser(id: string, user: any, scope: 'own' | 'any') {
+  async softDeleteUser(id: string, user: AuthUser, scope: "own" | "any") {
     const targetUser = await this.findOne(id, user, scope);
 
     if (targetUser.deletedAt) {
-      throw new BadRequestException('User is already deleted');
+      throw new BadRequestException("User is already deleted");
     }
 
     return this.prisma.user.update({
@@ -147,11 +163,11 @@ export class UsersService {
     });
   }
 
-  async restoreUser(id: string, user: any, scope: 'own' | 'any') {
+  async restoreUser(id: string, user: AuthUser, scope: "own" | "any") {
     const targetUser = await this.findOne(id, user, scope, true);
 
     if (!targetUser.deletedAt) {
-      throw new BadRequestException('User is not deleted');
+      throw new BadRequestException("User is not deleted");
     }
 
     return this.prisma.user.update({
@@ -175,11 +191,11 @@ export class UsersService {
     });
 
     if (!existingUser) {
-      throw new NotFoundException('User not found');
+      throw new NotFoundException("User not found");
     }
 
     // If password is being updated, hash it
-    const updateData = { ...updateUserDto };
+    const updateData: Prisma.UserUpdateInput = { ...updateUserDto };
     if (updateUserDto.password) {
       updateData.password = await bcrypt.hash(updateUserDto.password, 10);
     }
@@ -202,21 +218,31 @@ export class UsersService {
       });
 
       if (updateUserDto.imageUrl && existingUser.imageUrl) {
-        console.log('yasin', existingUser.imageUrl)
-        const absPath = path.join(process.cwd(), 'public', existingUser.imageUrl);
+        console.log("yasin", existingUser.imageUrl);
+        const absPath = path.join(
+          process.cwd(),
+          "public",
+          existingUser.imageUrl
+        );
         try {
           await fs.unlink(absPath);
         } catch (err) {
-          if (err.code !== 'ENOENT') {
-            console.error('Error deleting old file:', err);
+          if (
+            !(err instanceof Error) ||
+            (err as NodeJS.ErrnoException).code !== "ENOENT"
+          ) {
+            console.error("Error deleting old file:", err);
           }
         }
       }
 
       return updatedUser;
     } catch (error) {
-      if (error.code === 'P2002') {
-        throw new BadRequestException('Email or phone already exists');
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2002"
+      ) {
+        throw new BadRequestException("Email or phone already exists");
       }
       throw error;
     }
@@ -229,7 +255,7 @@ export class UsersService {
     });
 
     if (!existingUser) {
-      throw new NotFoundException('User not found');
+      throw new NotFoundException("User not found");
     }
 
     // Perform hard delete
@@ -237,6 +263,6 @@ export class UsersService {
       where: { id: userId },
     });
 
-    return { message: 'User permanently deleted', id: userId };
+    return { message: "User permanently deleted", id: userId };
   }
 }

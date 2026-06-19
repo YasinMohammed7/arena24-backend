@@ -2,35 +2,32 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
-} from '@nestjs/common';
-import { PrismaService } from '@/prisma/prisma.service';
-import { CreateReservationDto } from './dto/create-reservation.dto';
-import { UpdateReservationDto } from './dto/update-reservation.dto';
-import { ReservationStatus } from '@prisma/client';
-
-interface AuthenticatedUser {
-  id: string;
-  email: string;
-  name: string;
-  phone: string;
-  [key: string]: any;
-}
+} from "@nestjs/common";
+import { PrismaService } from "@/prisma/prisma.service";
+import { CreateReservationDto } from "./dto/create-reservation.dto";
+import { UpdateReservationDto } from "./dto/update-reservation.dto";
+import { ReservationStatus } from "@prisma/client";
 
 @Injectable()
 export class ReservationService {
   constructor(private prisma: PrismaService) {}
 
-  async  create(
-    createReservationDto: CreateReservationDto,
-    user: AuthenticatedUser,
-  ) {
+  async create(createReservationDto: CreateReservationDto, userId: string) {
     const { eventId, locationId, peopleCount, ...reservationData } =
       createReservationDto;
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, name: true, email: true, phone: true },
+    });
+    if (!user) {
+      throw new NotFoundException(`User with ID ${userId} not found`);
+    }
 
     // Validate that exactly one of eventId or locationId is provided
     if ((!eventId && !locationId) || (eventId && locationId)) {
       throw new BadRequestException(
-        'Either eventId or locationId must be provided, but not both',
+        "Either eventId or locationId must be provided, but not both"
       );
     }
 
@@ -52,7 +49,7 @@ export class ReservationService {
           where: {
             eventId,
             status: {
-              not: 'CANCELLED', // Don't count cancelled reservations
+              not: "CANCELLED", // Don't count cancelled reservations
             },
           },
           _sum: {
@@ -65,7 +62,7 @@ export class ReservationService {
 
         if (newTotal > event.maxPeople) {
           throw new BadRequestException(
-            `Cannot create reservation for ${peopleCount} people. This would exceed the maximum capacity of ${event.maxPeople} for event "${event.name}". Current reservations: ${currentTotalPeople}, Available spots: ${event.maxPeople - currentTotalPeople}`,
+            `Cannot create reservation for ${peopleCount} people. This would exceed the maximum capacity of ${event.maxPeople} for event "${event.name}". Current reservations: ${currentTotalPeople}, Available spots: ${event.maxPeople - currentTotalPeople}`
           );
         }
       }
@@ -88,7 +85,7 @@ export class ReservationService {
           where: {
             locationId,
             status: {
-              not: 'CANCELLED', // Don't count cancelled reservations
+              not: "CANCELLED", // Don't count cancelled reservations
             },
           },
           _sum: {
@@ -101,7 +98,7 @@ export class ReservationService {
 
         if (newTotal > location.capacity) {
           throw new BadRequestException(
-            `Cannot create reservation for ${peopleCount} people. This would exceed the maximum capacity of ${location.capacity} for location "${location.name}". Current reservations: ${currentTotalPeople}, Available spots: ${location.capacity - currentTotalPeople}`,
+            `Cannot create reservation for ${peopleCount} people. This would exceed the maximum capacity of ${location.capacity} for location "${location.name}". Current reservations: ${currentTotalPeople}, Available spots: ${location.capacity - currentTotalPeople}`
           );
         }
       }
@@ -158,7 +155,7 @@ export class ReservationService {
           select: { id: true, name: true, type: true, address: true },
         },
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdAt: "desc" },
     });
   }
 
@@ -258,7 +255,7 @@ export class ReservationService {
           select: { id: true, name: true, email: true },
         },
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdAt: "desc" },
     });
   }
 
@@ -270,7 +267,7 @@ export class ReservationService {
           select: { id: true, name: true, email: true },
         },
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdAt: "desc" },
     });
   }
 
@@ -291,7 +288,7 @@ export class ReservationService {
           select: { id: true, name: true, type: true, address: true },
         },
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdAt: "desc" },
     });
   }
 }

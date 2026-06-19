@@ -1,38 +1,45 @@
-import { Controller, Get, Param, ParseIntPipe, Query, ValidationPipe } from '@nestjs/common';
-import { ClientService } from './client.service';
-import { QueryOfferDto, ParsedQueryOfferDto } from './dto/query-offer.dto';
-import { QueryOfferCategoryDto } from '@/business/offer-category/dto/query-offer-category.dto';
+import {
+  Controller,
+  Get,
+  Param,
+  ParseIntPipe,
+  Query,
+  ValidationPipe,
+} from "@nestjs/common";
+import { ClientService } from "./client.service";
+import { QueryOfferDto, ParsedQueryOfferDto } from "./dto/query-offer.dto";
+import { QueryOfferCategoryDto } from "@/business/offer-category/dto/query-offer-category.dto";
 
-@Controller('client')
+@Controller("client")
 export class ClientController {
   constructor(private readonly clientService: ClientService) {}
 
-  @Get('offer-categories')
-  async findAll(@Query(ValidationPipe) queryDto: QueryOfferCategoryDto){
+  @Get("offer-categories")
+  async findAll(@Query(ValidationPipe) queryDto: QueryOfferCategoryDto) {
     return this.clientService.findAllOfferCategories(queryDto);
   }
-  
-  @Get('locations')
+
+  @Get("locations")
   async findAllActiveLocations() {
     return this.clientService.findAllActiveLocations();
   }
 
-  @Get('location/:id')
-  async findActiveLocationById(@Param('id', ParseIntPipe) id: number) {
+  @Get("location/:id")
+  async findActiveLocationById(@Param("id", ParseIntPipe) id: number) {
     return this.clientService.findActiveLocationById(id);
   }
 
-  @Get('events')
+  @Get("events")
   async findAllActiveEvents() {
     return this.clientService.findAllActiveEvents();
   }
 
-  @Get('event/:id')
-  async findActiveEventById(@Param('id', ParseIntPipe) id: number) {
+  @Get("event/:id")
+  async findActiveEventById(@Param("id", ParseIntPipe) id: number) {
     return this.clientService.findActiveEventById(id);
   }
 
-  @Get('offers')
+  @Get("offers")
   async findAllOffers(@Query() queryDto: QueryOfferDto) {
     // Convert string query parameters to proper types
     const parsedQuery: ParsedQueryOfferDto = {
@@ -44,9 +51,9 @@ export class ClientController {
         : undefined,
       activeOnly:
         queryDto.activeOnly !== undefined
-          ? queryDto.activeOnly === 'true'
+          ? queryDto.activeOnly === "true"
           : true,
-      globalOnly: queryDto.globalOnly ? queryDto.globalOnly === 'true' : false,
+      globalOnly: queryDto.globalOnly ? queryDto.globalOnly === "true" : false,
       page: queryDto.page ? Number(queryDto.page) : 1,
       limit: queryDto.limit ? Number(queryDto.limit) : 10,
     };
@@ -54,8 +61,8 @@ export class ClientController {
     return this.clientService.findAllOffers(parsedQuery);
   }
 
-  @Get('offer/:id')
-  async findOfferById(@Param('id', ParseIntPipe) id: number) {
+  @Get("offer/:id")
+  async findOfferById(@Param("id", ParseIntPipe) id: number) {
     return this.clientService.findOneOffer(id);
   }
 }

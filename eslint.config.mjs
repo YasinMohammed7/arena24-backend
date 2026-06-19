@@ -1,12 +1,12 @@
 // @ts-check
-import eslint from '@eslint/js';
-import eslintPluginPrettierRecommended from 'eslint-plugin-prettier/recommended';
-import globals from 'globals';
-import tseslint from 'typescript-eslint';
+import eslint from "@eslint/js";
+import eslintPluginPrettierRecommended from "eslint-plugin-prettier/recommended";
+import globals from "globals";
+import tseslint from "typescript-eslint";
 
 export default tseslint.config(
   {
-    ignores: ['eslint.config.mjs'],
+    ignores: ["eslint.config.mjs"],
   },
   eslint.configs.recommended,
   ...tseslint.configs.recommendedTypeChecked,
@@ -17,7 +17,7 @@ export default tseslint.config(
         ...globals.node,
         ...globals.jest,
       },
-      sourceType: 'commonjs',
+      sourceType: "commonjs",
       parserOptions: {
         projectService: true,
         tsconfigRootDir: import.meta.dirname,
@@ -26,9 +26,25 @@ export default tseslint.config(
   },
   {
     rules: {
-      '@typescript-eslint/no-explicit-any': 'off',
-      '@typescript-eslint/no-floating-promises': 'warn',
-      '@typescript-eslint/no-unsafe-argument': 'warn'
+      // Discourage new `any` rather than allowing it silently; keep consistent
+      // with the unsafe-flow rules below.
+      "@typescript-eslint/no-explicit-any": "warn",
+      // An unhandled async call is a real bug in a backend (lost errors,
+      // unawaited writes) — fail the lint, don't just warn.
+      "@typescript-eslint/no-floating-promises": "error",
+      "@typescript-eslint/no-unsafe-argument": "warn",
+      // Allow intentionally-unused bindings prefixed with `_`, and ignore
+      // siblings left over when stripping fields via a rest element
+      // (e.g. `const { password, ...rest } = user`).
+      "@typescript-eslint/no-unused-vars": [
+        "error",
+        {
+          argsIgnorePattern: "^_",
+          varsIgnorePattern: "^_",
+          caughtErrorsIgnorePattern: "^_",
+          ignoreRestSiblings: true,
+        },
+      ],
     },
-  },
+  }
 );

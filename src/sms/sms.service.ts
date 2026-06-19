@@ -1,5 +1,5 @@
-import { Injectable } from '@nestjs/common';
-import * as Pusher from 'pusher';
+import { Injectable } from "@nestjs/common";
+import * as Pusher from "pusher";
 
 @Injectable()
 export class SmsService {
@@ -7,16 +7,16 @@ export class SmsService {
 
   constructor() {
     this.pusher = new Pusher({
-      appId: '648333',
-      key: '18zpxt4lp7bzwhnzrjck',
-      secret: 'dff0faphetf6pdolte9c',
-      cluster: 'mt1',
+      appId: "648333",
+      key: "18zpxt4lp7bzwhnzrjck",
+      secret: "dff0faphetf6pdolte9c",
+      cluster: "mt1",
       useTLS: true,
-      host: 'lzf.ro',
+      host: "lzf.ro",
     });
   }
 
-  async sendVerificationCode(contact: string, code: string) {
+  async sendVerificationCode(contact: string, code: string): Promise<unknown> {
     const url = process.env.MOBILE_API_BASE_URL;
     const apiKey = process.env.MOBILE_API_KEY;
     if (!url) throw new Error("MOBILE_API_BASE_URL missing");
@@ -46,7 +46,7 @@ export class SmsService {
         throw new Error(`SMS API error ${res.status}: ${text}`);
       }
 
-      const data = await res.json().catch(() => ({}));
+      const data: unknown = await res.json().catch(() => ({}));
       return data;
     } catch (error) {
       console.error("Error sending SMS:", error);

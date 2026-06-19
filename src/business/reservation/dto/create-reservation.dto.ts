@@ -6,8 +6,8 @@ import {
   ValidateIf,
   IsNotEmpty,
   IsString,
-} from 'class-validator';
-import { ReservationStatus } from '@prisma/client';
+} from "class-validator";
+import { ReservationStatus } from "@prisma/client";
 
 export class CreateReservationDto {
   @IsInt()
@@ -23,13 +23,13 @@ export class CreateReservationDto {
   status?: ReservationStatus;
 
   // Polymorphic relation - exactly one must be provided
-  @ValidateIf((o) => !o.locationId)
-  @IsNotEmpty({ message: 'Either eventId or locationId must be provided' })
+  @ValidateIf((o: CreateReservationDto) => !o.locationId)
+  @IsNotEmpty({ message: "Either eventId or locationId must be provided" })
   @IsInt()
   eventId?: number;
 
-  @ValidateIf((o) => !o.eventId)
-  @IsNotEmpty({ message: 'Either eventId or locationId must be provided' })
+  @ValidateIf((o: CreateReservationDto) => !o.eventId)
+  @IsNotEmpty({ message: "Either eventId or locationId must be provided" })
   @IsInt()
   locationId?: number;
 }

@@ -2,12 +2,13 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
-} from '@nestjs/common';
-import { PrismaService } from '@/prisma/prisma.service';
-import { CreateOfferDto } from './dto/create-offer.dto';
-import { UpdateOfferDto } from './dto/update-offer.dto';
-import { QueryOfferDto } from './dto/query-offer.dto';
-import { OfferResponseDto } from './dto/offer-response.dto';
+} from "@nestjs/common";
+import { Prisma } from "@prisma/client";
+import { PrismaService } from "@/prisma/prisma.service";
+import { CreateOfferDto } from "./dto/create-offer.dto";
+import { UpdateOfferDto } from "./dto/update-offer.dto";
+import { QueryOfferDto } from "./dto/query-offer.dto";
+import { OfferResponseDto } from "./dto/offer-response.dto";
 
 @Injectable()
 export class OfferService {
@@ -22,7 +23,7 @@ export class OfferService {
     const end = new Date(endDate);
 
     if (start >= end) {
-      throw new BadRequestException('Start date must be before end date');
+      throw new BadRequestException("Start date must be before end date");
     }
 
     // Check if category exists
@@ -30,7 +31,7 @@ export class OfferService {
       where: { id: categoryId },
     });
     if (!category) {
-      throw new BadRequestException('Offer category not found');
+      throw new BadRequestException("Offer category not found");
     }
 
     // Check if location exists (if provided)
@@ -39,7 +40,7 @@ export class OfferService {
         where: { id: locationId },
       });
       if (!location) {
-        throw new BadRequestException('Location not found');
+        throw new BadRequestException("Location not found");
       }
     }
 
@@ -95,7 +96,7 @@ export class OfferService {
     const skip = (page - 1) * limit;
     const now = new Date();
 
-    const where: any = {};
+    const where: Prisma.OfferWhereInput = {};
 
     // Filter by location
     if (globalOnly) {
@@ -116,10 +117,10 @@ export class OfferService {
 
     // Filter by date range
     if (startDate || endDate || activeOnly) {
-      where.AND = [];
+      const and: Prisma.OfferWhereInput[] = [];
 
       if (startDate) {
-        where.AND.push({
+        and.push({
           startDate: {
             gte: new Date(startDate),
           },
@@ -127,7 +128,7 @@ export class OfferService {
       }
 
       if (endDate) {
-        where.AND.push({
+        and.push({
           endDate: {
             lte: new Date(endDate),
           },
@@ -136,7 +137,7 @@ export class OfferService {
 
       // Show only active offers
       if (activeOnly) {
-        where.AND.push({
+        and.push({
           startDate: {
             lte: now,
           },
@@ -145,6 +146,8 @@ export class OfferService {
           },
         });
       }
+
+      where.AND = and;
     }
 
     // Filter by minimum discount
@@ -160,8 +163,8 @@ export class OfferService {
         skip,
         take: limit,
         orderBy: [
-          { endDate: 'asc' }, // Show expiring offers first
-          { createdAt: 'desc' },
+          { endDate: "asc" }, // Show expiring offers first
+          { createdAt: "desc" },
         ],
         include: {
           location: {
@@ -225,7 +228,7 @@ export class OfferService {
 
   async findByLocation(
     locationId: number,
-    queryDto: QueryOfferDto = {},
+    queryDto: QueryOfferDto = {}
   ): Promise<{
     data: OfferResponseDto[];
     total: number;
@@ -253,7 +256,7 @@ export class OfferService {
 
   async findByCategory(
     categoryId: number,
-    queryDto: QueryOfferDto = {},
+    queryDto: QueryOfferDto = {}
   ): Promise<{
     data: OfferResponseDto[];
     total: number;
@@ -281,7 +284,7 @@ export class OfferService {
 
   async update(
     id: number,
-    updateOfferDto: UpdateOfferDto,
+    updateOfferDto: UpdateOfferDto
   ): Promise<OfferResponseDto> {
     // Check if offer exists
     const existingOffer = await this.prisma.offer.findUnique({
@@ -301,7 +304,7 @@ export class OfferService {
       const end = endDate ? new Date(endDate) : existingOffer.endDate;
 
       if (start >= end) {
-        throw new BadRequestException('Start date must be before end date');
+        throw new BadRequestException("Start date must be before end date");
       }
     }
 
@@ -311,7 +314,7 @@ export class OfferService {
         where: { id: categoryId },
       });
       if (!category) {
-        throw new BadRequestException('Offer category not found');
+        throw new BadRequestException("Offer category not found");
       }
     }
 
@@ -321,15 +324,20 @@ export class OfferService {
         where: { id: locationId },
       });
       if (!location) {
-        throw new BadRequestException('Location not found');
+        throw new BadRequestException("Location not found");
       }
     }
 
-    const updateData: any = { ...offerData };
+    const updateData: Prisma.OfferUpdateInput = { ...offerData };
     if (startDate) updateData.startDate = new Date(startDate);
     if (endDate) updateData.endDate = new Date(endDate);
-    if (locationId !== undefined) updateData.locationId = locationId;
-    if (categoryId) updateData.categoryId = categoryId;
+    if (locationId !== undefined) {
+      updateData.location =
+        locationId === null
+          ? { disconnect: true }
+          : { connect: { id: locationId } };
+    }
+    if (categoryId) updateData.category = { connect: { id: categoryId } };
 
     const offer = await this.prisma.offer.update({
       where: { id },
@@ -400,9 +408,9 @@ export class OfferService {
         },
       }),
       this.prisma.offer.groupBy({
-        by: ['categoryId'],
+        by: ["categoryId"],
         _count: { categoryId: true },
-        orderBy: { _count: { categoryId: 'desc' } },
+        orderBy: { _count: { categoryId: "desc" } },
       }),
     ]);
 
@@ -416,7 +424,7 @@ export class OfferService {
     const offersByCategory = byCategory.map((item) => {
       const category = categories.find((cat) => cat.id === item.categoryId);
       return {
-        category: category?.name || 'Unknown',
+        category: category?.name || "Unknown",
         count: item._count.categoryId,
       };
     });
@@ -430,7 +438,26 @@ export class OfferService {
     };
   }
 
-  private mapToResponseDto(offer: any): OfferResponseDto {
+  private mapToResponseDto(
+    offer: Prisma.OfferGetPayload<{
+      include: {
+        location: {
+          select: {
+            id: true;
+            name: true;
+            type: true;
+            address: true;
+          };
+        };
+        category: {
+          select: {
+            id: true;
+            name: true;
+          };
+        };
+      };
+    }>
+  ): OfferResponseDto {
     const now = new Date();
     const isActive = offer.startDate <= now && offer.endDate >= now;
 

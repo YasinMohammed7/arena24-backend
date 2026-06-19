@@ -1,7 +1,8 @@
-import { Injectable } from '@nestjs/common';
-import { PassportStrategy } from '@nestjs/passport';
-import { ExtractJwt, Strategy } from 'passport-jwt';
-import { PrismaService } from '@/prisma/prisma.service';
+import { Injectable } from "@nestjs/common";
+import { PassportStrategy } from "@nestjs/passport";
+import { ExtractJwt, Strategy } from "passport-jwt";
+import { PrismaService } from "@/prisma/prisma.service";
+import { JwtPayload } from "@/auth/interfaces/jwt-payload.interface";
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
@@ -12,12 +13,12 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       secretOrKey:
         process.env.JWT_SECRET ||
         (() => {
-          throw new Error('JWT_SECRET is not defined');
+          throw new Error("JWT_SECRET is not defined");
         })(),
     });
   }
 
-  async validate(payload: any) {
+  async validate(payload: JwtPayload) {
     // Fetch user with roles and permissions from the database
     const user = await this.prisma.user.findUnique({
       where: { id: payload.sub },
@@ -48,12 +49,12 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
 
     // Flatten permissions from all roles
     const rolePermissions = user.userRoles.flatMap((ur) =>
-      ur.role.rolePermissions.map((rp) => rp.permission.name),
+      ur.role.rolePermissions.map((rp) => rp.permission.name)
     );
 
     // Get direct user permissions
     const directPermissions = user.userPermissions.map(
-      (up) => up.permission.name,
+      (up) => up.permission.name
     );
 
     // Combine and deduplicate all permissions

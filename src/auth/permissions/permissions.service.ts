@@ -2,9 +2,10 @@ import {
   Injectable,
   NotFoundException,
   ConflictException,
-} from '@nestjs/common';
-import { PrismaService } from '@/prisma/prisma.service';
-import { CreatePermissionDto } from './dto/create-permission.dto';
+} from "@nestjs/common";
+import { PrismaService } from "@/prisma/prisma.service";
+import { Prisma } from "@prisma/client";
+import { CreatePermissionDto } from "./dto/create-permission.dto";
 
 @Injectable()
 export class PermissionsService {
@@ -17,12 +18,15 @@ export class PermissionsService {
         data: createPermissionDto,
       });
       return {
-        message: 'Permission created successfully',
+        message: "Permission created successfully",
         data: permission,
       };
-    } catch (error: any) {
-      if (error.code === 'P2002') {
-        throw new ConflictException('Permission name already exists');
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2002"
+      ) {
+        throw new ConflictException("Permission name already exists");
       }
       throw error;
     }
@@ -45,7 +49,7 @@ export class PermissionsService {
     // Check if role exists
     const role = await this.prisma.role.findUnique({ where: { id: roleId } });
     if (!role) {
-      throw new NotFoundException('Role not found');
+      throw new NotFoundException("Role not found");
     }
 
     // Check if permission exists
@@ -53,7 +57,7 @@ export class PermissionsService {
       where: { id: permissionId },
     });
     if (!permission) {
-      throw new NotFoundException('Permission not found');
+      throw new NotFoundException("Permission not found");
     }
 
     // Check if assignment already exists
@@ -64,7 +68,7 @@ export class PermissionsService {
     });
 
     if (existingAssignment) {
-      throw new ConflictException('Role already has this permission');
+      throw new ConflictException("Role already has this permission");
     }
 
     const rolePermission = await this.prisma.rolePermission.create({
@@ -76,7 +80,7 @@ export class PermissionsService {
     });
 
     return {
-      message: 'Permission assigned to role successfully',
+      message: "Permission assigned to role successfully",
       data: rolePermission,
     };
   }
@@ -85,12 +89,12 @@ export class PermissionsService {
   async assignPermissionToUser(
     userId: string,
     permissionId: string,
-    assignedBy?: string,
+    assignedBy?: string
   ) {
     // Check if user exists
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) {
-      throw new NotFoundException('User not found');
+      throw new NotFoundException("User not found");
     }
 
     // Check if permission exists
@@ -98,7 +102,7 @@ export class PermissionsService {
       where: { id: permissionId },
     });
     if (!permission) {
-      throw new NotFoundException('Permission not found');
+      throw new NotFoundException("Permission not found");
     }
 
     // Check if assignment already exists
@@ -109,7 +113,7 @@ export class PermissionsService {
     });
 
     if (existingAssignment) {
-      throw new ConflictException('User already has this permission');
+      throw new ConflictException("User already has this permission");
     }
 
     const userPermission = await this.prisma.userPermission.create({
@@ -127,7 +131,7 @@ export class PermissionsService {
     });
 
     return {
-      message: 'Permission assigned to user successfully',
+      message: "Permission assigned to user successfully",
       data: userPermission,
     };
   }
@@ -140,7 +144,7 @@ export class PermissionsService {
     });
 
     if (!rolePermission) {
-      throw new NotFoundException('Role permission assignment not found');
+      throw new NotFoundException("Role permission assignment not found");
     }
 
     await this.prisma.rolePermission.delete({
@@ -150,7 +154,7 @@ export class PermissionsService {
     });
 
     return {
-      message: 'Permission removed from role successfully',
+      message: "Permission removed from role successfully",
     };
   }
 
@@ -162,7 +166,7 @@ export class PermissionsService {
     });
 
     if (!userPermission) {
-      throw new NotFoundException('User permission assignment not found');
+      throw new NotFoundException("User permission assignment not found");
     }
 
     await this.prisma.userPermission.delete({
@@ -172,7 +176,7 @@ export class PermissionsService {
     });
 
     return {
-      message: 'Permission removed from user successfully',
+      message: "Permission removed from user successfully",
     };
   }
 
@@ -226,7 +230,7 @@ export class PermissionsService {
 
   async userHasPermission(
     userId: string,
-    permissionName: string,
+    permissionName: string
   ): Promise<boolean> {
     // Check role-based permissions
     const userWithRolePermission = await this.prisma.user.findFirst({

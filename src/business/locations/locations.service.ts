@@ -1,7 +1,7 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { CreateLocationDto } from './dto/create-location.dto';
-import { UpdateLocationDto } from './dto/update-location.dto';
-import { PrismaService } from '@/prisma/prisma.service';
+import { Injectable, NotFoundException } from "@nestjs/common";
+import { CreateLocationDto } from "./dto/create-location.dto";
+import { UpdateLocationDto } from "./dto/update-location.dto";
+import { PrismaService } from "@/prisma/prisma.service";
 
 @Injectable()
 export class LocationsService {
@@ -96,7 +96,7 @@ export class LocationsService {
         Review: true,
         _count: { select: { managers: true } },
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdAt: "desc" },
     });
   }
 
@@ -130,8 +130,8 @@ export class LocationsService {
     }
 
     const media = await this.prisma.media.findMany({
-      where: { modelType: 'Location', modelId: id.toString() },
-      orderBy: { createdAt: 'asc' },
+      where: { modelType: "Location", modelId: id.toString() },
+      orderBy: { createdAt: "asc" },
     });
 
     return {
@@ -292,9 +292,9 @@ export class LocationsService {
       const url = `/uploads/restaurants/${restaurantId}/gallery/${file.filename}`;
 
       return {
-        modelType: 'Location', // or 'Restaurant' depending on your business logic
+        modelType: "Location", // or 'Restaurant' depending on your business logic
         modelId: restaurantId.toString(),
-        type: 'gallery',
+        type: "gallery",
         fileName: file.filename,
         mimeType: file.mimetype,
         size: file.size,
@@ -310,7 +310,7 @@ export class LocationsService {
     });
 
     return {
-      message: 'Gallery uploaded successfully',
+      message: "Gallery uploaded successfully",
       files: mediaRecords,
     };
   }
@@ -334,7 +334,7 @@ export class LocationsService {
 
     if (!locationFacility) {
       throw new NotFoundException(
-        `LocationFacility relation not found for location ${locationId} and facility ${facilityId}`,
+        `LocationFacility relation not found for location ${locationId} and facility ${facilityId}`
       );
     }
 
@@ -374,7 +374,7 @@ export class LocationsService {
 
     if (!locationAmenity) {
       throw new NotFoundException(
-        `LocationAmenity relation not found for location ${locationId} and amenity ${amenityId}`,
+        `LocationAmenity relation not found for location ${locationId} and amenity ${amenityId}`
       );
     }
 

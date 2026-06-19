@@ -2,11 +2,12 @@ import {
   Injectable,
   NotFoundException,
   ConflictException,
-} from '@nestjs/common';
-import { PrismaService } from '@/prisma/prisma.service';
-import { CreateBusinessDto } from './dto/create-business.dto';
-import { UpdateBusinessDto } from './dto/update-business.dto';
-import { BusinessEntity } from './entities/business.entity';
+} from "@nestjs/common";
+import { PrismaService } from "@/prisma/prisma.service";
+import { Prisma } from "@prisma/client";
+import { CreateBusinessDto } from "./dto/create-business.dto";
+import { UpdateBusinessDto } from "./dto/update-business.dto";
+import { BusinessEntity } from "./entities/business.entity";
 
 @Injectable()
 export class BusinessService {
@@ -14,7 +15,7 @@ export class BusinessService {
 
   async create(
     createBusinessDto: CreateBusinessDto,
-    ownerId: string,
+    ownerId: string
   ): Promise<BusinessEntity> {
     try {
       const business = await this.prisma.business.create({
@@ -42,11 +43,13 @@ export class BusinessService {
       });
 
       return new BusinessEntity(business);
-    } catch (error: any) {
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-      if (error.code === 'P2002') {
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2002"
+      ) {
         throw new ConflictException(
-          'A business with this name already exists for this owner',
+          "A business with this name already exists for this owner"
         );
       }
       throw error;
@@ -56,7 +59,7 @@ export class BusinessService {
   async findAll(
     ownerId: string,
     page: number = 1,
-    limit: number = 10,
+    limit: number = 10
   ): Promise<{
     businesses: BusinessEntity[];
     total: number;
@@ -93,7 +96,7 @@ export class BusinessService {
             },
           },
         },
-        orderBy: { createdAt: 'desc' },
+        orderBy: { createdAt: "desc" },
       }),
       this.prisma.business.count({
         where: { ownerId },
@@ -179,7 +182,7 @@ export class BusinessService {
     });
 
     if (!business) {
-      throw new NotFoundException('Business not found');
+      throw new NotFoundException("Business not found");
     }
 
     return new BusinessEntity(business);
@@ -188,7 +191,7 @@ export class BusinessService {
   async update(
     id: number,
     updateBusinessDto: UpdateBusinessDto,
-    ownerId: string,
+    ownerId: string
   ): Promise<BusinessEntity> {
     const existingBusiness = await this.prisma.business.findFirst({
       where: {
@@ -198,7 +201,7 @@ export class BusinessService {
     });
 
     if (!existingBusiness) {
-      throw new NotFoundException('Business not found');
+      throw new NotFoundException("Business not found");
     }
 
     try {
@@ -225,11 +228,13 @@ export class BusinessService {
       });
 
       return new BusinessEntity(business);
-    } catch (error: any) {
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-      if (error.code === 'P2002') {
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2002"
+      ) {
         throw new ConflictException(
-          'A business with this name already exists for this owner',
+          "A business with this name already exists for this owner"
         );
       }
       throw error;
@@ -245,7 +250,7 @@ export class BusinessService {
     });
 
     if (!business) {
-      throw new NotFoundException('Business not found');
+      throw new NotFoundException("Business not found");
     }
 
     await this.prisma.business.delete({
@@ -255,7 +260,7 @@ export class BusinessService {
 
   async getBusinessStats(
     businessId: number,
-    ownerId: string,
+    ownerId: string
   ): Promise<{
     totalLocations: number;
     activeLocations: number;
@@ -284,11 +289,11 @@ export class BusinessService {
     });
 
     if (!business) {
-      throw new NotFoundException('Business not found');
+      throw new NotFoundException("Business not found");
     }
 
     const businessAge = Math.floor(
-      (Date.now() - business.createdAt.getTime()) / (1000 * 60 * 60 * 24),
+      (Date.now() - business.createdAt.getTime()) / (1000 * 60 * 60 * 24)
     );
 
     return {
@@ -330,7 +335,7 @@ export class BusinessService {
           },
         },
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdAt: "desc" },
     });
 
     return businesses.map((business) => new BusinessEntity(business));
