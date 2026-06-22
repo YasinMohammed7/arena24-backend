@@ -8,13 +8,14 @@ import { TestingModule } from "@/testing.module";
 import { CommonModule } from "@/common/common.module";
 import { RolesModule } from "@/auth/roles/roles.module";
 import { MailModule } from "./mail/mail.module";
-import { ConfigModule } from "@nestjs/config";
+import { ConfigModule, ConfigService } from "@nestjs/config";
 import { SmsModule } from "./sms/sms.module";
 import { BusinessModule } from "./business/business.module";
 import { MediaService } from "./media/media.service";
 import { MediaController } from "./media/media.controller";
 import { MediaModule } from "./media/media.module";
 import { ClientModule } from "./client/client.module";
+import { TypeOrmModule } from "@nestjs/typeorm";
 
 @Module({
   imports: [
@@ -25,6 +26,15 @@ import { ClientModule } from "./client/client.module";
     ConfigModule.forRoot({
       isGlobal: true, // makes ConfigService available app-wide
       envFilePath: ".env",
+    }),
+    TypeOrmModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => ({
+        type: "mariadb",
+        url: config.get<string>("DATABASE_URL"),
+        autoLoadEntities: true,
+        synchronize: false,
+      }),
     }),
     PrismaModule,
     AuthModule,
