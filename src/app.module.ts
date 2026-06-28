@@ -16,6 +16,7 @@ import { MediaController } from "./media/media.controller";
 import { MediaModule } from "./media/media.module";
 import { ClientModule } from "./client/client.module";
 import { TypeOrmModule } from "@nestjs/typeorm";
+import { DatabaseService } from "./database/database.service";
 
 @Module({
   imports: [
@@ -49,6 +50,6 @@ import { TypeOrmModule } from "@nestjs/typeorm";
     ClientModule,
   ],
   controllers: [MediaController],
-  providers: [MediaService],
+  providers: [DatabaseService, MediaService],
 })
 export class AppModule {}
