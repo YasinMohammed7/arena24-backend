@@ -5,6 +5,7 @@ import {
   Index,
   OneToMany,
   OneToOne,
+  PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from "typeorm";
 import { Reservations } from "./reservations";
@@ -22,7 +23,7 @@ import { Businesses } from "./businesses";
 @Index("User_phone_key", ["phone"], { unique: true })
 @Entity("User")
 export class User {
-  @Column("varchar", { primary: true, name: "id", length: 191 })
+  @PrimaryGeneratedColumn("uuid")
   id: string;
 
   @Column("varchar", { name: "email", unique: true, length: 191 })

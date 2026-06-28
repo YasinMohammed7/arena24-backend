@@ -1,9 +1,15 @@
-import { Column, CreateDateColumn, Entity, Index } from "typeorm";
+import {
+  Column,
+  CreateDateColumn,
+  Entity,
+  Index,
+  PrimaryGeneratedColumn,
+} from "typeorm";
 
 @Index("verification_codes_contact_key", ["contact"], { unique: true })
 @Entity("verification_codes")
 export class VerificationCodes {
-  @Column("varchar", { primary: true, name: "id", length: 191 })
+  @PrimaryGeneratedColumn("uuid")
   id: string;
 
   @Column("varchar", { name: "contact", unique: true, length: 191 })

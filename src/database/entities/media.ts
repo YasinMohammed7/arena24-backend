@@ -1,9 +1,15 @@
-import { Column, CreateDateColumn, Entity, Index } from "typeorm";
+import {
+  Column,
+  CreateDateColumn,
+  Entity,
+  Index,
+  PrimaryGeneratedColumn,
+} from "typeorm";
 
 @Index("media_modelType_modelId_idx", ["modelType", "modelId"], {})
 @Entity("media")
 export class Media {
-  @Column("varchar", { primary: true, name: "id", length: 191 })
+  @PrimaryGeneratedColumn("uuid")
   id: string;
 
   @Column("varchar", { name: "modelType", length: 191 })
