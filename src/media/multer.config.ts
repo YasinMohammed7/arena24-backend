@@ -2,28 +2,23 @@ import { diskStorage } from "multer";
 import { extname } from "path";
 import * as fs from "fs";
 
-export const createMulterConfig = (modelType?: string, type?: string) => ({
+// Uploaded files are streamed to a temp directory with a unique name.
+// Their final location (uploads/<modelType>/<type>/) is resolved by
+// MediaService AFTER the request body (DTO) has been validated — so no
+// request-body reading happens inside multer's storage callbacks.
+export const TEMP_UPLOAD_DIR = "./public/uploads/temp";
+export const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
+
+export const multerOptions = {
   storage: diskStorage({
-    destination: (req, file, cb) => {
-      // Try to get from req.body first, then fall back to passed parameters
-      const body = req.body as { modelType?: string; type?: string };
-      const bodyModelType = body?.modelType || modelType;
-      const bodyType = body?.type || type;
-
-      if (!bodyModelType || !bodyType) {
-        return cb(new Error("modelType and type are required"), "");
-      }
-
-      const uploadPath = `./public/uploads/${bodyModelType}/${bodyType}`;
-      fs.mkdirSync(uploadPath, { recursive: true });
-      cb(null, uploadPath);
+    destination: (_req, _file, cb) => {
+      fs.mkdirSync(TEMP_UPLOAD_DIR, { recursive: true });
+      cb(null, TEMP_UPLOAD_DIR);
     },
-    filename: (req, file, cb) => {
-      const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+    filename: (_req, file, cb) => {
+      const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
       cb(null, uniqueSuffix + extname(file.originalname));
     },
   }),
-});
-
-// Keep the original export for backward compatibility, but it may have issues
-export const multerConfig = createMulterConfig();
+  limits: { fileSize: MAX_FILE_SIZE },
+};

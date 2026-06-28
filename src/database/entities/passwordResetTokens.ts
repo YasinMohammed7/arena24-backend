@@ -5,6 +5,7 @@ import {
   Index,
   JoinColumn,
   OneToOne,
+  PrimaryGeneratedColumn,
 } from "typeorm";
 import { User } from "./user";
 
@@ -12,7 +13,7 @@ import { User } from "./user";
 @Index("password_reset_tokens_userId_key", ["userId"], { unique: true })
 @Entity("password_reset_tokens")
 export class PasswordResetTokens {
-  @Column("varchar", { primary: true, name: "id", length: 191 })
+  @PrimaryGeneratedColumn("uuid")
   id: string;
 
   @Column("varchar", { name: "token", unique: true, length: 191 })
