@@ -11,8 +11,6 @@ import { MailModule } from "./mail/mail.module";
 import { ConfigModule, ConfigService } from "@nestjs/config";
 import { SmsModule } from "./sms/sms.module";
 import { BusinessModule } from "./business/business.module";
-import { MediaService } from "./media/media.service";
-import { MediaController } from "./media/media.controller";
 import { MediaModule } from "./media/media.module";
 import { ClientModule } from "./client/client.module";
 import { TypeOrmModule } from "@nestjs/typeorm";
@@ -49,7 +47,6 @@ import { DatabaseService } from "./database/database.service";
     TestingModule,
     ClientModule,
   ],
-  controllers: [MediaController],
-  providers: [DatabaseService, MediaService],
+  providers: [DatabaseService],
 })
 export class AppModule {}

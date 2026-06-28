@@ -5,6 +5,7 @@ import {
   JoinTable,
   ManyToMany,
   OneToMany,
+  PrimaryGeneratedColumn,
 } from "typeorm";
 import { Role } from "./role";
 import { UserPermissions } from "./userPermissions";
@@ -12,7 +13,7 @@ import { UserPermissions } from "./userPermissions";
 @Index("Permission_name_key", ["name"], { unique: true })
 @Entity("Permission")
 export class Permission {
-  @Column("varchar", { primary: true, name: "id", length: 191 })
+  @PrimaryGeneratedColumn("uuid")
   id: string;
 
   @Column("varchar", { name: "name", unique: true, length: 191 })

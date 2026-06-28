@@ -1,7 +1,7 @@
 import { NestFactory } from "@nestjs/core";
 import { NestExpressApplication } from "@nestjs/platform-express";
 import { AppModule } from "./app.module";
-import { BadRequestException, Logger, ValidationPipe } from "@nestjs/common";
+import { Logger, ValidationPipe } from "@nestjs/common";
 import { AppGraphService } from "./common/services/app-graph.service";
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 
@@ -23,10 +23,6 @@ async function bootstrap() {
 
   app.useGlobalPipes(
     new ValidationPipe({
-      exceptionFactory: (errors) =>
-        new BadRequestException(
-          Object.values(errors[0]?.constraints ?? {})[0] || "Validation failed"
-        ),
       whitelist: true,
       forbidNonWhitelisted: true,
       transform: true, // Enable transformation to DTO classes
