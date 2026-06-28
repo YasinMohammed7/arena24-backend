@@ -1,11 +1,12 @@
 import { NestFactory } from "@nestjs/core";
 import { NestExpressApplication } from "@nestjs/platform-express";
 import { AppModule } from "./app.module";
-import { BadRequestException, ValidationPipe } from "@nestjs/common";
+import { BadRequestException, Logger, ValidationPipe } from "@nestjs/common";
 import { AppGraphService } from "./common/services/app-graph.service";
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 
 async function bootstrap() {
+  const logger = new Logger("Bootstrap");
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     abortOnError: false,
   });
@@ -15,8 +16,8 @@ async function bootstrap() {
   if (appGraphService.isGraphGenerationEnabled()) {
     const graph = appGraphService.generateAppGraph(app, "app.module_v4.mmd");
     if (graph) {
-      console.log("App graph generated successfully");
-      console.log(graph);
+      logger.log("App graph generated successfully");
+      logger.log(graph);
     }
   }
 
@@ -74,10 +75,9 @@ async function bootstrap() {
       persistAuthorization: true,
     },
   });
-  await app.listen(process.env.PORT ?? 3000);
-  console.log(`App runing on: http://localhost:${process.env.PORT}`);
-  console.log(
-    `Documentation found on: http://localhost:${process.env.PORT}/api/docs`
-  );
+  const port = process.env.PORT ?? 3000;
+  await app.listen(port);
+  logger.log(`App running on: http://localhost:${port}`);
+  logger.log(`Documentation found on: http://localhost:${port}/api/docs`);
 }
 void bootstrap();
