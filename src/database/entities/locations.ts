@@ -8,6 +8,7 @@ import {
   OneToMany,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
+  VirtualColumn,
 } from "typeorm";
 import { Offers } from "./offers";
 import { Reservations } from "./reservations";
@@ -140,4 +141,11 @@ export class Locations {
 
   @OneToMany(() => Event, (event) => event.location)
   events: Event[];
+
+  // Read-only count of managers assigned to this location (not persisted).
+  @VirtualColumn({
+    query: (alias) =>
+      `SELECT COUNT(*) FROM location_managers WHERE locationId = ${alias}.id`,
+  })
+  managersCount: number;
 }
