@@ -9,7 +9,6 @@ import {
   Query,
   ParseIntPipe,
   HttpStatus,
-  ValidationPipe,
   UseGuards,
 } from "@nestjs/common";
 import {
@@ -17,10 +16,10 @@ import {
   ApiOperation,
   ApiResponse,
   ApiParam,
-  ApiQuery,
   ApiBadRequestResponse,
   ApiNotFoundResponse,
   ApiConflictResponse,
+  ApiBearerAuth,
 } from "@nestjs/swagger";
 import { ReviewService } from "./review.service";
 import { CreateReviewDto } from "./dto/create-review.dto";
@@ -28,9 +27,13 @@ import { UpdateReviewDto } from "./dto/update-review.dto";
 import { QueryReviewDto } from "./dto/query-review.dto";
 import { ReviewResponseDto } from "./dto/review-response.dto";
 import { JwtAuthGuard } from "@/auth/guards/jwt-auth.guard";
+import { AuthorizationGuard } from "@/auth/guards/authorization.guard";
+import { HasRoleOr } from "@/auth/decorators/authorize.decorator";
 import { CurrentUser } from "@/auth/decorators/current-user.decorator";
+import { ApiPaginatedResponse } from "@/common/decorators/api-paginated-response.decorator";
 
 @ApiTags("Reviews")
+@ApiBearerAuth("access-token")
 @Controller("business/reviews")
 @UseGuards(JwtAuthGuard)
 export class ReviewController {
@@ -60,29 +63,8 @@ export class ReviewController {
   @ApiOperation({
     summary: "Get all reviews with optional filtering and pagination",
   })
-  @ApiResponse({
-    status: HttpStatus.OK,
-    description: "Reviews retrieved successfully",
-    schema: {
-      type: "object",
-      properties: {
-        data: {
-          type: "array",
-          items: { $ref: "#/components/schemas/ReviewResponseDto" },
-        },
-        total: { type: "number" },
-        page: { type: "number" },
-        limit: { type: "number" },
-        totalPages: { type: "number" },
-      },
-    },
-  })
-  @ApiQuery({ name: "locationId", required: false, type: Number })
-  @ApiQuery({ name: "userId", required: false, type: String })
-  @ApiQuery({ name: "minStars", required: false, type: Number })
-  @ApiQuery({ name: "page", required: false, type: Number })
-  @ApiQuery({ name: "limit", required: false, type: Number })
-  async findAll(@Query(ValidationPipe) queryDto: QueryReviewDto) {
+  @ApiPaginatedResponse(ReviewResponseDto)
+  async findAll(@Query() queryDto: QueryReviewDto) {
     return this.reviewService.findAll(queryDto);
   }
 
@@ -106,12 +88,9 @@ export class ReviewController {
       },
     },
   })
-  @ApiQuery({ name: "minStars", required: false, type: Number })
-  @ApiQuery({ name: "page", required: false, type: Number })
-  @ApiQuery({ name: "limit", required: false, type: Number })
   async findByLocation(
     @Param("locationId", ParseIntPipe) locationId: number,
-    @Query(ValidationPipe) queryDto: QueryReviewDto
+    @Query() queryDto: QueryReviewDto
   ) {
     return this.reviewService.findByLocation(locationId, queryDto);
   }
@@ -161,6 +140,11 @@ export class ReviewController {
     return this.reviewService.findOne(id);
   }
 
+  @UseGuards(AuthorizationGuard)
+  @HasRoleOr(
+    ["BUSINESS_OWNER", "PLATFORM_MANAGER"],
+    ["update:any", "update:review"]
+  )
   @Patch(":id")
   @ApiOperation({ summary: "Update a review" })
   @ApiParam({ name: "id", type: "number", description: "Review ID" })
@@ -178,6 +162,11 @@ export class ReviewController {
     return this.reviewService.update(id, updateReviewDto);
   }
 
+  @UseGuards(AuthorizationGuard)
+  @HasRoleOr(
+    ["BUSINESS_OWNER", "PLATFORM_MANAGER"],
+    ["delete:any", "delete:review"]
+  )
   @Delete(":id")
   @ApiOperation({ summary: "Delete a review" })
   @ApiParam({ name: "id", type: "number", description: "Review ID" })

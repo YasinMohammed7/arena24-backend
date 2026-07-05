@@ -4,16 +4,37 @@ import {
   NotFoundException,
   BadRequestException,
 } from "@nestjs/common";
-import { PrismaService } from "@/prisma/prisma.service";
-import { Prisma } from "@prisma/client";
+import { InjectRepository } from "@nestjs/typeorm";
+import { Repository } from "typeorm";
+import { Reviews } from "@/database/entities/reviews";
+import { User } from "@/database/entities/user";
+import { Locations } from "@/database/entities/locations";
 import { CreateReviewDto } from "./dto/create-review.dto";
 import { UpdateReviewDto } from "./dto/update-review.dto";
 import { QueryReviewDto } from "./dto/query-review.dto";
 import { ReviewResponseDto } from "./dto/review-response.dto";
+import { PaginatedResult, paginate } from "@/common/dto/paginated-result";
 
 @Injectable()
 export class ReviewService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    @InjectRepository(Reviews)
+    private readonly reviewRepo: Repository<Reviews>,
+    @InjectRepository(User)
+    private readonly userRepo: Repository<User>,
+    @InjectRepository(Locations)
+    private readonly locationRepo: Repository<Locations>
+  ) {}
+
+  // Loads a review with its user + location subsets.
+  private reviewWithRelationsQuery() {
+    return this.reviewRepo
+      .createQueryBuilder("review")
+      .leftJoin("review.user", "user")
+      .addSelect(["user.id", "user.name", "user.email"])
+      .leftJoin("review.location", "location")
+      .addSelect(["location.id", "location.name", "location.type"]);
+  }
 
   async create(
     createReviewDto: CreateReviewDto,
@@ -21,137 +42,64 @@ export class ReviewService {
   ): Promise<ReviewResponseDto> {
     const { locationId, comment, stars } = createReviewDto;
 
-    // Check if user exists
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-    });
+    const user = await this.userRepo.findOneBy({ id: userId });
     if (!user) {
       throw new BadRequestException("User not found");
     }
 
-    // Check if location exists
-    const location = await this.prisma.location.findUnique({
-      where: { id: locationId },
-    });
+    const location = await this.locationRepo.findOneBy({ id: locationId });
     if (!location) {
       throw new BadRequestException("Location not found");
     }
 
-    // Check if review already exists (unique constraint)
-    const existingReview = await this.prisma.review.findUnique({
-      where: {
-        userId_locationId: {
-          userId,
-          locationId,
-        },
-      },
+    // Unique review per (user, location)
+    const existingReview = await this.reviewRepo.findOneBy({
+      userId,
+      locationId,
     });
-
     if (existingReview) {
       throw new ConflictException("User has already reviewed this location");
     }
 
-    const review = await this.prisma.review.create({
-      data: {
-        comment,
-        stars,
-        userId,
-        locationId,
-      },
-      include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-          },
-        },
-        location: {
-          select: {
-            id: true,
-            name: true,
-            type: true,
-          },
-        },
-      },
+    const newReview = this.reviewRepo.create({
+      comment: comment ?? null,
+      stars,
+      userId,
+      locationId,
     });
+    const saved: Reviews = await this.reviewRepo.save(newReview);
 
-    return review;
+    return this.findOne(saved.id);
   }
 
-  async findAll(queryDto: QueryReviewDto = {}): Promise<{
-    data: ReviewResponseDto[];
-    total: number;
-    page: number;
-    limit: number;
-    totalPages: number;
-  }> {
+  async findAll(
+    queryDto: QueryReviewDto = {}
+  ): Promise<PaginatedResult<ReviewResponseDto>> {
     const { locationId, userId, minStars, page = 1, limit = 10 } = queryDto;
-    const skip = (page - 1) * limit;
 
-    const where: Prisma.ReviewWhereInput = {};
+    const queryBuilder = this.reviewWithRelationsQuery()
+      .orderBy("review.createdAt", "DESC")
+      .skip((page - 1) * limit)
+      .take(limit);
 
-    if (locationId) where.locationId = locationId;
-    if (userId) where.userId = userId;
-    if (minStars) where.stars = { gte: minStars };
+    if (locationId) {
+      queryBuilder.andWhere("review.locationId = :locationId", { locationId });
+    }
+    if (userId) {
+      queryBuilder.andWhere("review.userId = :userId", { userId });
+    }
+    if (minStars) {
+      queryBuilder.andWhere("review.stars >= :minStars", { minStars });
+    }
 
-    const [reviews, total] = await Promise.all([
-      this.prisma.review.findMany({
-        where,
-        skip,
-        take: limit,
-        orderBy: { createdAt: "desc" },
-        include: {
-          user: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
-            },
-          },
-          location: {
-            select: {
-              id: true,
-              name: true,
-              type: true,
-            },
-          },
-        },
-      }),
-      this.prisma.review.count({ where }),
-    ]);
-
-    const totalPages = Math.ceil(total / limit);
-
-    return {
-      data: reviews,
-      total,
-      page,
-      limit,
-      totalPages,
-    };
+    const [data, total] = await queryBuilder.getManyAndCount();
+    return paginate(data, total, page, limit);
   }
 
   async findOne(id: number): Promise<ReviewResponseDto> {
-    const review = await this.prisma.review.findUnique({
-      where: { id },
-      include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-          },
-        },
-        location: {
-          select: {
-            id: true,
-            name: true,
-            type: true,
-          },
-        },
-      },
-    });
+    const review = await this.reviewWithRelationsQuery()
+      .where("review.id = :id", { id })
+      .getOne();
 
     if (!review) {
       throw new NotFoundException(`Review with ID ${id} not found`);
@@ -169,49 +117,32 @@ export class ReviewService {
     averageRating: number;
   }> {
     const { minStars, page = 1, limit = 10 } = queryDto;
-    const skip = (page - 1) * limit;
 
-    const where: Prisma.ReviewWhereInput = { locationId };
-    if (minStars) where.stars = { gte: minStars };
+    const queryBuilder = this.reviewWithRelationsQuery()
+      .where("review.locationId = :locationId", { locationId })
+      .orderBy("review.createdAt", "DESC")
+      .skip((page - 1) * limit)
+      .take(limit);
 
-    const [reviews, total, avgResult] = await Promise.all([
-      this.prisma.review.findMany({
-        where,
-        skip,
-        take: limit,
-        orderBy: { createdAt: "desc" },
-        include: {
-          user: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
-            },
-          },
-          location: {
-            select: {
-              id: true,
-              name: true,
-              type: true,
-            },
-          },
-        },
-      }),
-      this.prisma.review.count({ where }),
-      this.prisma.review.aggregate({
-        where: { locationId },
-        _avg: {
-          stars: true,
-        },
-      }),
-    ]);
+    if (minStars) {
+      queryBuilder.andWhere("review.stars >= :minStars", { minStars });
+    }
 
-    const averageRating = avgResult._avg.stars || 0;
+    const [data, total] = await queryBuilder.getManyAndCount();
+
+    // Average rating across all reviews for the location (ignores minStars).
+    const avgRaw = await this.reviewRepo
+      .createQueryBuilder("review")
+      .select("AVG(review.stars)", "avg")
+      .where("review.locationId = :locationId", { locationId })
+      .getRawOne<{ avg: string | null }>();
+
+    const averageRating = avgRaw?.avg ? Number(avgRaw.avg) : 0;
 
     return {
-      data: reviews,
+      data,
       total,
-      averageRating: Math.round(averageRating * 100) / 100, // Round to 2 decimal places
+      averageRating: Math.round(averageRating * 100) / 100,
     };
   }
 
@@ -219,52 +150,22 @@ export class ReviewService {
     id: number,
     updateReviewDto: UpdateReviewDto
   ): Promise<ReviewResponseDto> {
-    // Check if review exists
-    const existingReview = await this.prisma.review.findUnique({
-      where: { id },
-    });
-
+    const existingReview = await this.reviewRepo.findOneBy({ id });
     if (!existingReview) {
       throw new NotFoundException(`Review with ID ${id} not found`);
     }
 
-    const review = await this.prisma.review.update({
-      where: { id },
-      data: updateReviewDto,
-      include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-          },
-        },
-        location: {
-          select: {
-            id: true,
-            name: true,
-            type: true,
-          },
-        },
-      },
-    });
-
-    return review;
+    await this.reviewRepo.update(id, updateReviewDto);
+    return this.findOne(id);
   }
 
   async remove(id: number): Promise<{ message: string }> {
-    // Check if review exists
-    const existingReview = await this.prisma.review.findUnique({
-      where: { id },
-    });
-
+    const existingReview = await this.reviewRepo.findOneBy({ id });
     if (!existingReview) {
       throw new NotFoundException(`Review with ID ${id} not found`);
     }
 
-    await this.prisma.review.delete({
-      where: { id },
-    });
+    await this.reviewRepo.delete(id);
 
     return { message: `Review with ID ${id} has been deleted` };
   }
@@ -274,28 +175,31 @@ export class ReviewService {
     averageRating: number;
     ratingDistribution: { stars: number; count: number }[];
   }> {
-    const [total, avgResult, distribution] = await Promise.all([
-      this.prisma.review.count({ where: { locationId } }),
-      this.prisma.review.aggregate({
-        where: { locationId },
-        _avg: { stars: true },
-      }),
-      this.prisma.review.groupBy({
-        by: ["stars"],
-        where: { locationId },
-        _count: { stars: true },
-        orderBy: { stars: "asc" },
-      }),
+    const [totalReviews, avgRaw, distribution] = await Promise.all([
+      this.reviewRepo.count({ where: { locationId } }),
+      this.reviewRepo
+        .createQueryBuilder("review")
+        .select("AVG(review.stars)", "avg")
+        .where("review.locationId = :locationId", { locationId })
+        .getRawOne<{ avg: string | null }>(),
+      this.reviewRepo
+        .createQueryBuilder("review")
+        .select("review.stars", "stars")
+        .addSelect("COUNT(*)", "count")
+        .where("review.locationId = :locationId", { locationId })
+        .groupBy("review.stars")
+        .orderBy("review.stars", "ASC")
+        .getRawMany<{ stars: number; count: string }>(),
     ]);
 
-    const averageRating = avgResult._avg.stars || 0;
+    const averageRating = avgRaw?.avg ? Number(avgRaw.avg) : 0;
     const ratingDistribution = distribution.map((item) => ({
-      stars: item.stars,
-      count: item._count.stars,
+      stars: Number(item.stars),
+      count: Number(item.count),
     }));
 
     return {
-      totalReviews: total,
+      totalReviews,
       averageRating: Math.round(averageRating * 100) / 100,
       ratingDistribution,
     };
