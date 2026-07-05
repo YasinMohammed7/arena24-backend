@@ -3,61 +3,78 @@ import {
   NotFoundException,
   BadRequestException,
 } from "@nestjs/common";
-import { PrismaService } from "@/prisma/prisma.service";
 import { CreateReservationDto } from "./dto/create-reservation.dto";
 import { UpdateReservationDto } from "./dto/update-reservation.dto";
 import { ReservationStatus } from "@prisma/client";
+import { Locations } from "@/database/entities/locations";
+import { Repository } from "typeorm";
+import { InjectRepository } from "@nestjs/typeorm";
+import { Reservations } from "@/database/entities/reservations";
+import { Event } from "@/database/entities/event";
+import { User } from "@/database/entities/user";
 
 @Injectable()
 export class ReservationService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    @InjectRepository(Locations)
+    private readonly locationRepo: Repository<Locations>,
+    @InjectRepository(Reservations)
+    private readonly reservationRepo: Repository<Reservations>,
+    @InjectRepository(Event)
+    private readonly eventRepo: Repository<Event>,
+    @InjectRepository(User)
+    private readonly userRepo: Repository<User>
+  ) {}
 
   async create(createReservationDto: CreateReservationDto, userId: string) {
     const { eventId, locationId, peopleCount, ...reservationData } =
       createReservationDto;
 
-    const user = await this.prisma.user.findUnique({
+    const user = await this.userRepo.findOne({
       where: { id: userId },
-      select: { id: true, name: true, email: true, phone: true },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        phone: true,
+      },
     });
+
     if (!user) {
       throw new NotFoundException(`User with ID ${userId} not found`);
     }
 
-    // Validate that exactly one of eventId or locationId is provided
     if ((!eventId && !locationId) || (eventId && locationId)) {
       throw new BadRequestException(
         "Either eventId or locationId must be provided, but not both"
       );
     }
 
-    // Validate that the event or location exists and check capacity
     if (eventId) {
-      const event = await this.prisma.event.findUnique({
+      const event = await this.eventRepo.findOne({
         where: { id: eventId },
-        select: { id: true, maxPeople: true, name: true },
+        select: {
+          id: true,
+          maxPeople: true,
+          name: true,
+        },
       });
+
       if (!event) {
         throw new NotFoundException(`Event with ID ${eventId} not found`);
       }
 
-      // Validate that peopleCount doesn't exceed event's maxPeople limit
-      // If maxPeople is null, we assume no limit is set
       if (event.maxPeople !== null) {
-        // Count existing reservations for this event
-        const existingReservations = await this.prisma.reservation.aggregate({
-          where: {
-            eventId,
-            status: {
-              not: "CANCELLED", // Don't count cancelled reservations
-            },
-          },
-          _sum: {
-            peopleCount: true,
-          },
-        });
+        const result = await this.reservationRepo
+          .createQueryBuilder("reservation")
+          .select("COALESCE(SUM(reservation.peopleCount), 0)", "total")
+          .where("reservation.eventId = :eventId", { eventId })
+          .andWhere("reservation.status != :status", {
+            status: ReservationStatus.CANCELLED,
+          })
+          .getRawOne<{ total: string }>();
 
-        const currentTotalPeople = existingReservations._sum.peopleCount || 0;
+        const currentTotalPeople = Number(result?.total ?? 0);
         const newTotal = currentTotalPeople + peopleCount;
 
         if (newTotal > event.maxPeople) {
@@ -69,31 +86,30 @@ export class ReservationService {
     }
 
     if (locationId) {
-      const location = await this.prisma.location.findUnique({
+      const location = await this.locationRepo.findOne({
         where: { id: locationId },
-        select: { id: true, capacity: true, name: true },
+        select: {
+          id: true,
+          capacity: true,
+          name: true,
+        },
       });
+
       if (!location) {
         throw new NotFoundException(`Location with ID ${locationId} not found`);
       }
 
-      // Validate that peopleCount doesn't exceed location's capacity
-      // If capacity is null, we assume no limit is set
       if (location.capacity !== null) {
-        // Count existing reservations for this location
-        const existingReservations = await this.prisma.reservation.aggregate({
-          where: {
-            locationId,
-            status: {
-              not: "CANCELLED", // Don't count cancelled reservations
-            },
-          },
-          _sum: {
-            peopleCount: true,
-          },
-        });
+        const result = await this.reservationRepo
+          .createQueryBuilder("reservation")
+          .select("COALESCE(SUM(reservation.peopleCount), 0)", "total")
+          .where("reservation.locationId = :locationId", { locationId })
+          .andWhere("reservation.status != :status", {
+            status: ReservationStatus.CANCELLED,
+          })
+          .getRawOne<{ total: string }>();
 
-        const currentTotalPeople = existingReservations._sum.peopleCount || 0;
+        const currentTotalPeople = Number(result?.total ?? 0);
         const newTotal = currentTotalPeople + peopleCount;
 
         if (newTotal > location.capacity) {
@@ -104,90 +120,140 @@ export class ReservationService {
       }
     }
 
-    return this.prisma.reservation.create({
-      data: {
-        ...reservationData,
-        peopleCount,
-        userId: user.id,
-        name: user.name,
-        email: user.email,
-        phone: user.phone,
-        eventId,
-        locationId,
-        status: reservationData.status || ReservationStatus.PENDING,
+    const reservation = this.reservationRepo.create({
+      ...reservationData,
+      peopleCount,
+      userId: user.id,
+      name: user.name,
+      email: user.email,
+      phone: user.phone,
+      eventId,
+      locationId,
+      status: reservationData.status || ReservationStatus.PENDING,
+    });
+
+    const savedReservation = await this.reservationRepo.save(reservation);
+
+    return this.reservationRepo.findOne({
+      where: { id: savedReservation.id },
+      relations: {
+        user: true,
+        event: true,
+        location: true,
       },
-      include: {
+      select: {
+        id: true,
+        peopleCount: true,
+        name: true,
+        email: true,
+        phone: true,
+        status: true,
+        createdAt: true,
+        updatedAt: true,
         user: {
-          select: { id: true, name: true, email: true },
+          id: true,
+          name: true,
+          email: true,
         },
         event: {
-          select: {
-            id: true,
-            name: true,
-            date: true,
-            startHour: true,
-            endHour: true,
-          },
+          id: true,
+          name: true,
+          date: true,
+          startHour: true,
+          endHour: true,
         },
         location: {
-          select: { id: true, name: true, type: true, address: true },
+          id: true,
+          name: true,
+          type: true,
+          address: true,
         },
       },
     });
   }
 
   async findAll() {
-    return this.prisma.reservation.findMany({
-      include: {
+    return this.reservationRepo.find({
+      relations: {
+        user: true,
+        event: true,
+        location: true,
+      },
+      select: {
+        id: true,
+        peopleCount: true,
+        name: true,
+        email: true,
+        phone: true,
+        status: true,
+        createdAt: true,
+        updatedAt: true,
         user: {
-          select: { id: true, name: true, email: true },
+          id: true,
+          name: true,
+          email: true,
         },
         event: {
-          select: {
-            id: true,
-            name: true,
-            date: true,
-            startHour: true,
-            endHour: true,
-          },
+          id: true,
+          name: true,
+          date: true,
+          startHour: true,
+          endHour: true,
         },
         location: {
-          select: { id: true, name: true, type: true, address: true },
+          id: true,
+          name: true,
+          type: true,
+          address: true,
         },
       },
-      orderBy: { createdAt: "desc" },
+      order: {
+        createdAt: "DESC",
+      },
     });
   }
 
   async findOne(id: number) {
-    const reservation = await this.prisma.reservation.findUnique({
+    const reservation = await this.reservationRepo.findOne({
       where: { id },
-      include: {
+      relations: {
+        user: true,
+        event: true,
+        location: true,
+      },
+      select: {
+        id: true,
+        peopleCount: true,
+        name: true,
+        email: true,
+        phone: true,
+        status: true,
+        createdAt: true,
+        updatedAt: true,
         user: {
-          select: { id: true, name: true, email: true, phone: true },
+          id: true,
+          name: true,
+          email: true,
+          phone: true,
         },
         event: {
-          select: {
-            id: true,
-            name: true,
-            description: true,
-            date: true,
-            startHour: true,
-            endHour: true,
-            address: true,
-            price: true,
-            maxPeople: true,
-          },
+          id: true,
+          name: true,
+          description: true,
+          date: true,
+          startHour: true,
+          endHour: true,
+          address: true,
+          price: true,
+          maxPeople: true,
         },
         location: {
-          select: {
-            id: true,
-            name: true,
-            type: true,
-            address: true,
-            capacity: true,
-            description: true,
-          },
+          id: true,
+          name: true,
+          type: true,
+          address: true,
+          capacity: true,
+          description: true,
         },
       },
     });
@@ -200,7 +266,7 @@ export class ReservationService {
   }
 
   async update(id: number, updateReservationDto: UpdateReservationDto) {
-    const existingReservation = await this.prisma.reservation.findUnique({
+    const existingReservation = await this.reservationRepo.findOne({
       where: { id },
     });
 
@@ -208,31 +274,48 @@ export class ReservationService {
       throw new NotFoundException(`Reservation with ID ${id} not found`);
     }
 
-    return this.prisma.reservation.update({
+    await this.reservationRepo.update(id, updateReservationDto);
+
+    return this.reservationRepo.findOne({
       where: { id },
-      data: updateReservationDto,
-      include: {
+      relations: {
+        user: true,
+        event: true,
+        location: true,
+      },
+      select: {
+        id: true,
+        peopleCount: true,
+        name: true,
+        email: true,
+        phone: true,
+        status: true,
+        createdAt: true,
+        updatedAt: true,
         user: {
-          select: { id: true, name: true, email: true },
+          id: true,
+          name: true,
+          email: true,
         },
         event: {
-          select: {
-            id: true,
-            name: true,
-            date: true,
-            startHour: true,
-            endHour: true,
-          },
+          id: true,
+          name: true,
+          date: true,
+          startHour: true,
+          endHour: true,
         },
         location: {
-          select: { id: true, name: true, type: true, address: true },
+          id: true,
+          name: true,
+          type: true,
+          address: true,
         },
       },
     });
   }
 
   async remove(id: number) {
-    const existingReservation = await this.prisma.reservation.findUnique({
+    const existingReservation = await this.reservationRepo.findOne({
       where: { id },
     });
 
@@ -240,55 +323,98 @@ export class ReservationService {
       throw new NotFoundException(`Reservation with ID ${id} not found`);
     }
 
-    await this.prisma.reservation.delete({
-      where: { id },
-    });
+    await this.reservationRepo.delete(id);
 
     return { message: `Reservation with ID ${id} has been deleted` };
   }
 
   async findByEvent(eventId: number) {
-    return this.prisma.reservation.findMany({
+    return this.reservationRepo.find({
       where: { eventId },
-      include: {
+      relations: {
+        user: true,
+      },
+      select: {
+        id: true,
+        peopleCount: true,
+        name: true,
+        email: true,
+        phone: true,
+        status: true,
+        createdAt: true,
+        updatedAt: true,
         user: {
-          select: { id: true, name: true, email: true },
+          id: true,
+          name: true,
+          email: true,
         },
       },
-      orderBy: { createdAt: "desc" },
+      order: {
+        createdAt: "DESC",
+      },
     });
   }
 
   async findByLocation(locationId: number) {
-    return this.prisma.reservation.findMany({
+    return this.reservationRepo.find({
       where: { locationId },
-      include: {
+      relations: {
+        user: true,
+      },
+      select: {
+        id: true,
+        peopleCount: true,
+        name: true,
+        email: true,
+        phone: true,
+        status: true,
+        createdAt: true,
+        updatedAt: true,
         user: {
-          select: { id: true, name: true, email: true },
+          id: true,
+          name: true,
+          email: true,
         },
       },
-      orderBy: { createdAt: "desc" },
+      order: {
+        createdAt: "DESC",
+      },
     });
   }
 
   async findByUser(userId: string) {
-    return this.prisma.reservation.findMany({
+    return this.reservationRepo.find({
       where: { userId },
-      include: {
+      relations: {
+        event: true,
+        location: true,
+      },
+      select: {
+        id: true,
+        peopleCount: true,
+        name: true,
+        email: true,
+        phone: true,
+        status: true,
+        createdAt: true,
+        updatedAt: true,
         event: {
-          select: {
-            id: true,
-            name: true,
-            date: true,
-            startHour: true,
-            endHour: true,
-          },
+          id: true,
+          name: true,
+          date: true,
+          startHour: true,
+          endHour: true,
         },
         location: {
-          select: { id: true, name: true, type: true, address: true },
+          id: true,
+          name: true,
+          type: true,
+          address: true,
         },
       },
-      orderBy: { createdAt: "desc" },
+      order: {
+        createdAt: "DESC",
+      },
     });
   }
 }
