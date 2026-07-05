@@ -69,7 +69,9 @@ export class MediaController {
         fileIsRequired: true,
         validators: [
           new MaxFileSizeValidator({ maxSize: MAX_FILE_SIZE }),
-          new FileTypeValidator({ fileType: /(jpe?g|png|webp|svg)$/ }),
+          new FileTypeValidator({
+            fileType: /^image\/(jpeg|png|webp|svg\+xml)$/,
+          }),
         ],
       })
     )
