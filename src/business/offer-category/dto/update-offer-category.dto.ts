@@ -1,12 +1,6 @@
-import { IsString, IsOptional } from "class-validator";
-import { ApiPropertyOptional } from "@nestjs/swagger";
+import { PartialType } from "@nestjs/swagger";
+import { CreateOfferCategoryDto } from "./create-offer-category.dto";
 
-export class UpdateOfferCategoryDto {
-  @ApiPropertyOptional({
-    description: "Offer category name",
-    example: "Updated Pizza Specials",
-  })
-  @IsOptional()
-  @IsString()
-  name?: string;
-}
+export class UpdateOfferCategoryDto extends PartialType(
+  CreateOfferCategoryDto
+) {}

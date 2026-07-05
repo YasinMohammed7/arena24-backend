@@ -9,8 +9,9 @@ import {
   Query,
   ParseIntPipe,
   HttpStatus,
-  ValidationPipe,
   UseGuards,
+  DefaultValuePipe,
+  ParseBoolPipe,
 } from "@nestjs/common";
 import {
   ApiTags,
@@ -28,15 +29,22 @@ import { CreateOfferCategoryDto } from "./dto/create-offer-category.dto";
 import { UpdateOfferCategoryDto } from "./dto/update-offer-category.dto";
 import { QueryOfferCategoryDto } from "./dto/query-offer-category.dto";
 import { OfferCategoryResponseDto } from "./dto/offer-category-response.dto";
-import { JwtAuthGuard } from "../../auth/guards/jwt-auth.guard";
+import { JwtAuthGuard } from "@/auth/guards/jwt-auth.guard";
+import { AuthorizationGuard } from "@/auth/guards/authorization.guard";
+import { HasRoleOr } from "@/auth/decorators/authorize.decorator";
 
 @ApiTags("Offer Categories")
+@ApiBearerAuth("access-token")
 @Controller("business/offer-categories")
 @UseGuards(JwtAuthGuard)
-@ApiBearerAuth()
 export class OfferCategoryController {
   constructor(private readonly offerCategoryService: OfferCategoryService) {}
 
+  @UseGuards(AuthorizationGuard)
+  @HasRoleOr(
+    ["BUSINESS_OWNER", "PLATFORM_MANAGER"],
+    ["create:any", "create:offer-category"]
+  )
   @Post()
   @ApiOperation({ summary: "Create a new offer category" })
   @ApiResponse({
@@ -93,7 +101,7 @@ export class OfferCategoryController {
     type: Number,
     description: "Items per page (default: 10)",
   })
-  async findAll(@Query(ValidationPipe) queryDto: QueryOfferCategoryDto) {
+  async findAll(@Query() queryDto: QueryOfferCategoryDto) {
     return this.offerCategoryService.findAll(queryDto);
   }
 
@@ -186,14 +194,17 @@ export class OfferCategoryController {
   @ApiNotFoundResponse({ description: "Offer category not found" })
   async findWithOffers(
     @Param("id", ParseIntPipe) id: number,
-    @Query("includeInactive") includeInactive = false
+    @Query("includeInactive", new DefaultValuePipe(false), ParseBoolPipe)
+    includeInactive: boolean
   ) {
-    return this.offerCategoryService.findWithOffers(
-      id,
-      includeInactive === true
-    );
+    return this.offerCategoryService.findWithOffers(id, includeInactive);
   }
 
+  @UseGuards(AuthorizationGuard)
+  @HasRoleOr(
+    ["BUSINESS_OWNER", "PLATFORM_MANAGER"],
+    ["update:any", "update:offer-category"]
+  )
   @Patch(":id")
   @ApiOperation({ summary: "Update an offer category" })
   @ApiParam({ name: "id", type: "number", description: "Category ID" })
@@ -214,6 +225,11 @@ export class OfferCategoryController {
     return this.offerCategoryService.update(id, updateOfferCategoryDto);
   }
 
+  @UseGuards(AuthorizationGuard)
+  @HasRoleOr(
+    ["BUSINESS_OWNER", "PLATFORM_MANAGER"],
+    ["delete:any", "delete:offer-category"]
+  )
   @Delete(":id")
   @ApiOperation({ summary: "Delete an offer category" })
   @ApiParam({ name: "id", type: "number", description: "Category ID" })

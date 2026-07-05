@@ -6,6 +6,7 @@ import {
   OneToMany,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
+  VirtualColumn,
 } from "typeorm";
 import { Offers } from "./offers";
 
@@ -27,4 +28,11 @@ export class OfferCategories {
 
   @OneToMany(() => Offers, (offers) => offers.category)
   offers: Offers[];
+
+  // Read-only count of currently-active offers (not persisted).
+  @VirtualColumn({
+    query: (alias) =>
+      `SELECT COUNT(*) FROM offers WHERE categoryId = ${alias}.id AND startDate <= NOW() AND endDate >= NOW()`,
+  })
+  offerCount: number;
 }
