@@ -10,6 +10,7 @@ import { Offers } from "@/database/entities/offers";
 import { CreateOfferCategoryDto } from "./dto/create-offer-category.dto";
 import { UpdateOfferCategoryDto } from "./dto/update-offer-category.dto";
 import { QueryOfferCategoryDto } from "./dto/query-offer-category.dto";
+import { paginate } from "@/common/dto/paginated-result";
 
 @Injectable()
 export class OfferCategoryService {
@@ -53,13 +54,7 @@ export class OfferCategoryService {
 
     const [data, total] = await queryBuilder.getManyAndCount();
 
-    return {
-      data,
-      total,
-      page,
-      limit,
-      totalPages: Math.ceil(total / limit),
-    };
+    return paginate(data, total, page, limit);
   }
 
   async findOne(id: number) {

@@ -9,20 +9,23 @@ import {
   Query,
   ParseIntPipe,
   HttpStatus,
-  ValidationPipe,
   UseGuards,
   UseInterceptors,
   UploadedFile,
+  ParseFilePipe,
+  MaxFileSizeValidator,
+  FileTypeValidator,
 } from "@nestjs/common";
 import {
   ApiTags,
   ApiOperation,
   ApiResponse,
   ApiParam,
-  ApiQuery,
   ApiBadRequestResponse,
   ApiNotFoundResponse,
   ApiBearerAuth,
+  ApiConsumes,
+  ApiBody,
 } from "@nestjs/swagger";
 import { OfferService } from "./offer.service";
 import { CreateOfferDto } from "./dto/create-offer.dto";
@@ -33,13 +36,22 @@ import { JwtAuthGuard } from "@/auth/guards/jwt-auth.guard";
 import { AuthorizationGuard } from "@/auth/guards/authorization.guard";
 import { HasRoleOr } from "@/auth/decorators/authorize.decorator";
 import { FileInterceptor } from "@nestjs/platform-express";
-import { diskStorage } from "multer";
-import { extname } from "path";
+import { MAX_COVER_SIZE } from "./multer.config";
+import { ApiPaginatedResponse } from "@/common/decorators/api-paginated-response.decorator";
+
+// Optional cover image, size-capped. Used by create.
+const coverFilePipe = new ParseFilePipe({
+  fileIsRequired: false,
+  validators: [
+    new MaxFileSizeValidator({ maxSize: MAX_COVER_SIZE }),
+    new FileTypeValidator({ fileType: /^image\/(jpeg|png|webp|svg\+xml)$/ }),
+  ],
+});
 
 @ApiTags("Offers")
 @Controller("business/offers")
 @UseGuards(JwtAuthGuard)
-@ApiBearerAuth()
+@ApiBearerAuth("access-token")
 export class OfferController {
   constructor(private readonly offerService: OfferService) {}
 
@@ -50,6 +62,23 @@ export class OfferController {
   )
   @Post()
   @ApiOperation({ summary: "Create a new offer" })
+  @ApiConsumes("multipart/form-data")
+  @ApiBody({
+    schema: {
+      type: "object",
+      required: ["name", "startDate", "endDate", "categoryId"],
+      properties: {
+        name: { type: "string" },
+        description: { type: "string" },
+        startDate: { type: "string", format: "date-time" },
+        endDate: { type: "string", format: "date-time" },
+        discount: { type: "number" },
+        locationId: { type: "number" },
+        categoryId: { type: "number" },
+        cover: { type: "string", format: "binary" },
+      },
+    },
+  })
   @ApiResponse({
     status: HttpStatus.CREATED,
     description: "Offer created successfully",
@@ -59,21 +88,10 @@ export class OfferController {
     description:
       "Invalid input data, category not found, location not found, or invalid date range",
   })
-  @UseInterceptors(
-    FileInterceptor("cover", {
-      storage: diskStorage({
-        destination: "./public/uploads/offers/image",
-        filename: (req, file, cb) => {
-          const uniqueSuffix =
-            Date.now() + "-" + Math.round(Math.random() * 1e9);
-          cb(null, uniqueSuffix + extname(file.originalname));
-        },
-      }),
-    })
-  )
+  @UseInterceptors(FileInterceptor("cover"))
   async create(
     @Body() createOfferDto: CreateOfferDto,
-    @UploadedFile() file: Express.Multer.File
+    @UploadedFile(coverFilePipe) file?: Express.Multer.File
   ): Promise<OfferResponseDto> {
     const offerData = {
       ...createOfferDto,
@@ -88,84 +106,8 @@ export class OfferController {
   @ApiOperation({
     summary: "Get all offers with optional filtering and pagination",
   })
-  @ApiResponse({
-    status: HttpStatus.OK,
-    description: "Offers retrieved successfully",
-    schema: {
-      type: "object",
-      properties: {
-        data: {
-          type: "array",
-          items: { $ref: "#/components/schemas/OfferResponseDto" },
-        },
-        total: { type: "number" },
-        page: { type: "number" },
-        limit: { type: "number" },
-        totalPages: { type: "number" },
-      },
-    },
-  })
-  @ApiQuery({
-    name: "locationId",
-    required: false,
-    type: Number,
-    description: "Filter by location ID",
-  })
-  @ApiQuery({
-    name: "categoryId",
-    required: false,
-    type: Number,
-    description: "Filter by category ID",
-  })
-  @ApiQuery({
-    name: "name",
-    required: false,
-    type: String,
-    description: "Filter by offer name (partial match)",
-  })
-  @ApiQuery({
-    name: "startDate",
-    required: false,
-    type: String,
-    description: "Filter offers starting from this date",
-  })
-  @ApiQuery({
-    name: "endDate",
-    required: false,
-    type: String,
-    description: "Filter offers ending before this date",
-  })
-  @ApiQuery({
-    name: "minDiscount",
-    required: false,
-    type: Number,
-    description: "Filter by minimum discount percentage",
-  })
-  @ApiQuery({
-    name: "activeOnly",
-    required: false,
-    type: Boolean,
-    description: "Show only active offers (default: true)",
-  })
-  @ApiQuery({
-    name: "globalOnly",
-    required: false,
-    type: Boolean,
-    description: "Show only global offers (default: false)",
-  })
-  @ApiQuery({
-    name: "page",
-    required: false,
-    type: Number,
-    description: "Page number (default: 1)",
-  })
-  @ApiQuery({
-    name: "limit",
-    required: false,
-    type: Number,
-    description: "Items per page (default: 10)",
-  })
-  async findAll(@Query(ValidationPipe) queryDto: QueryOfferDto) {
+  @ApiPaginatedResponse(OfferResponseDto)
+  async findAll(@Query() queryDto: QueryOfferDto) {
     return this.offerService.findAll(queryDto);
   }
 
@@ -216,16 +158,9 @@ export class OfferController {
       },
     },
   })
-  @ApiQuery({ name: "name", required: false, type: String })
-  @ApiQuery({ name: "startDate", required: false, type: String })
-  @ApiQuery({ name: "endDate", required: false, type: String })
-  @ApiQuery({ name: "minDiscount", required: false, type: Number })
-  @ApiQuery({ name: "activeOnly", required: false, type: Boolean })
-  @ApiQuery({ name: "page", required: false, type: Number })
-  @ApiQuery({ name: "limit", required: false, type: Number })
   async findByLocation(
     @Param("locationId", ParseIntPipe) locationId: number,
-    @Query(ValidationPipe) queryDto: QueryOfferDto
+    @Query() queryDto: QueryOfferDto
   ) {
     return this.offerService.findByLocation(locationId, queryDto);
   }
@@ -248,17 +183,9 @@ export class OfferController {
       },
     },
   })
-  @ApiQuery({ name: "locationId", required: false, type: Number })
-  @ApiQuery({ name: "name", required: false, type: String })
-  @ApiQuery({ name: "startDate", required: false, type: String })
-  @ApiQuery({ name: "endDate", required: false, type: String })
-  @ApiQuery({ name: "minDiscount", required: false, type: Number })
-  @ApiQuery({ name: "activeOnly", required: false, type: Boolean })
-  @ApiQuery({ name: "page", required: false, type: Number })
-  @ApiQuery({ name: "limit", required: false, type: Number })
   async findByCategory(
     @Param("categoryId", ParseIntPipe) categoryId: number,
-    @Query(ValidationPipe) queryDto: QueryOfferDto
+    @Query() queryDto: QueryOfferDto
   ) {
     return this.offerService.findByCategory(categoryId, queryDto);
   }
