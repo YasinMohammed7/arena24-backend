@@ -2,29 +2,38 @@ import {
   Injectable,
   NotFoundException,
   ConflictException,
-} from '@nestjs/common';
-import { CreateFacilityDto } from './dto/create-facility.dto';
-import { UpdateFacilityDto } from './dto/update-facility.dto';
-import { PrismaService } from '@/prisma/prisma.service';
+} from "@nestjs/common";
+import { CreateFacilityDto } from "./dto/create-facility.dto";
+import { UpdateFacilityDto } from "./dto/update-facility.dto";
+import { InjectRepository } from "@nestjs/typeorm";
+import { Repository, QueryFailedError } from "typeorm";
+import { Facilities } from "@/database/entities/facilities";
+import { LocationFacilities } from "@/database/entities/locationFacilities";
 
 @Injectable()
 export class FacilityService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    @InjectRepository(Facilities)
+    private readonly facilityRepo: Repository<Facilities>,
+
+    @InjectRepository(LocationFacilities)
+    private readonly locationFacilityRepo: Repository<LocationFacilities>
+  ) {}
 
   async create(createFacilityDto: CreateFacilityDto) {
     try {
-      return await this.prisma.facility.create({
-        data: createFacilityDto,
-        include: {
-          _count: {
-            select: { locations: true },
-          },
-        },
-      });
+      const facility = this.facilityRepo.create(createFacilityDto);
+      const saved = await this.facilityRepo.save(facility);
+      // A brand-new facility has no linked locations yet.
+      saved.locationsCount = 0;
+      return saved;
     } catch (error) {
-      if (error.code === 'P2002') {
+      if (
+        error instanceof QueryFailedError &&
+        (error as { code?: string }).code === "ER_DUP_ENTRY"
+      ) {
         throw new ConflictException(
-          `Facility with name '${createFacilityDto.name}' already exists`,
+          `Facility with name '${createFacilityDto.name}' already exists`
         );
       }
       throw error;
@@ -32,40 +41,30 @@ export class FacilityService {
   }
 
   async findAll(includeInactive: boolean = false) {
-    const where = includeInactive ? {} : { isActive: true };
+    const queryBuilder = this.facilityRepo
+      .createQueryBuilder("facility")
+      .orderBy("facility.name", "ASC");
 
-    return await this.prisma.facility.findMany({
-      where,
-      include: {
-        _count: {
-          select: { locations: true },
-        },
-      },
-      orderBy: { name: 'asc' },
-    });
+    if (!includeInactive) {
+      queryBuilder.where("facility.isActive = :isActive", { isActive: true });
+    }
+
+    return queryBuilder.getMany();
   }
 
   async findOne(id: number) {
-    const facility = await this.prisma.facility.findUnique({
-      where: { id },
-      include: {
-        locations: {
-          include: {
-            location: {
-              select: {
-                id: true,
-                name: true,
-                type: true,
-                isActive: true,
-              },
-            },
-          },
-        },
-        _count: {
-          select: { locations: true },
-        },
-      },
-    });
+    const facility = await this.facilityRepo
+      .createQueryBuilder("facility")
+      .leftJoinAndSelect("facility.locationFacilities", "locationFacility")
+      .leftJoin("locationFacility.location", "location")
+      .addSelect([
+        "location.id",
+        "location.name",
+        "location.type",
+        "location.isActive",
+      ])
+      .where("facility.id = :id", { id })
+      .getOne();
 
     if (!facility) {
       throw new NotFoundException(`Facility with ID ${id} not found`);
@@ -78,19 +77,19 @@ export class FacilityService {
     await this.findOne(id); // Check if exists
 
     try {
-      return await this.prisma.facility.update({
-        where: { id },
-        data: updateFacilityDto,
-        include: {
-          _count: {
-            select: { locations: true },
-          },
-        },
-      });
+      await this.facilityRepo.update(id, updateFacilityDto);
+
+      return this.facilityRepo
+        .createQueryBuilder("facility")
+        .where("facility.id = :id", { id })
+        .getOne();
     } catch (error) {
-      if (error.code === 'P2002') {
+      if (
+        error instanceof QueryFailedError &&
+        (error as { code?: string }).code === "ER_DUP_ENTRY"
+      ) {
         throw new ConflictException(
-          `Facility with name '${updateFacilityDto.name}' already exists`,
+          `Facility with name '${updateFacilityDto.name}' already exists`
         );
       }
       throw error;
@@ -101,57 +100,46 @@ export class FacilityService {
     const facility = await this.findOne(id);
 
     // Check if facility is being used by any locations
-    const locationCount = await this.prisma.locationFacility.count({
+    const locationCount = await this.locationFacilityRepo.count({
       where: { facilityId: id },
     });
 
     if (locationCount > 0) {
       throw new ConflictException(
-        `Cannot delete facility '${facility.name}' as it is being used by ${locationCount} location(s). Remove it from all locations first.`,
+        `Cannot delete facility '${facility.name}' as it is being used by ${locationCount} location(s). Remove it from all locations first.`
       );
     }
 
-    return await this.prisma.facility.delete({
-      where: { id },
-    });
+    await this.facilityRepo.delete(id);
   }
 
   async toggleStatus(id: number) {
     const facility = await this.findOne(id);
 
-    return await this.prisma.facility.update({
-      where: { id },
-      data: { isActive: !facility.isActive },
-      include: {
-        _count: {
-          select: { locations: true },
-        },
-      },
-    });
+    await this.facilityRepo.update(id, { isActive: !facility.isActive });
+
+    return this.facilityRepo
+      .createQueryBuilder("facility")
+      .where("facility.id = :id", { id })
+      .getOne();
   }
 
   async getLocationsByFacility(id: number) {
     await this.findOne(id); // Check if facility exists
 
-    return await this.prisma.locationFacility.findMany({
-      where: { facilityId: id },
-      include: {
-        location: {
-          select: {
-            id: true,
-            name: true,
-            type: true,
-            address: true,
-            isActive: true,
-            business: {
-              select: {
-                id: true,
-                name: true,
-              },
-            },
-          },
-        },
-      },
-    });
+    return this.locationFacilityRepo
+      .createQueryBuilder("locationFacility")
+      .leftJoin("locationFacility.location", "location")
+      .addSelect([
+        "location.id",
+        "location.name",
+        "location.type",
+        "location.address",
+        "location.isActive",
+      ])
+      .leftJoin("location.business", "business")
+      .addSelect(["business.id", "business.name"])
+      .where("locationFacility.facilityId = :id", { id })
+      .getMany();
   }
 }
