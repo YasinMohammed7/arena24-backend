@@ -5,29 +5,34 @@ import {
 } from "@nestjs/common";
 import { CreateAmenityDto } from "./dto/create-amenity.dto";
 import { UpdateAmenityDto } from "./dto/update-amenity.dto";
-import { PrismaService } from "@/prisma/prisma.service";
-import { Prisma } from "@prisma/client";
 import { promises as fs } from "fs";
 import * as path from "path";
+import { Amenities } from "@/database/entities/amenities";
+import { Repository, QueryFailedError } from "typeorm";
+import { InjectRepository } from "@nestjs/typeorm";
+import { LocationAmenities } from "@/database/entities/locationAmenities";
 
 @Injectable()
 export class AmenityService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    @InjectRepository(Amenities)
+    private readonly amenityRepo: Repository<Amenities>,
+
+    @InjectRepository(LocationAmenities)
+    private readonly locationAmenityRepo: Repository<LocationAmenities>
+  ) {}
 
   async create(createAmenityDto: CreateAmenityDto) {
     try {
-      return await this.prisma.amenity.create({
-        data: createAmenityDto,
-        include: {
-          _count: {
-            select: { locations: true },
-          },
-        },
-      });
+      const amenity = this.amenityRepo.create(createAmenityDto);
+      const saved = await this.amenityRepo.save(amenity);
+      // A brand-new amenity has no linked locations yet.
+      saved.locationsCount = 0;
+      return saved;
     } catch (error) {
       if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === "P2002"
+        error instanceof QueryFailedError &&
+        (error as { code?: string }).code === "ER_DUP_ENTRY"
       ) {
         throw new ConflictException(
           `Amenity with name '${createAmenityDto.name}' already exists`
@@ -38,40 +43,30 @@ export class AmenityService {
   }
 
   async findAll(includeInactive: boolean = false) {
-    const where = includeInactive ? {} : { isActive: true };
+    const queryBuilder = this.amenityRepo
+      .createQueryBuilder("amenity")
+      .orderBy("amenity.name", "ASC");
 
-    return await this.prisma.amenity.findMany({
-      where,
-      include: {
-        _count: {
-          select: { locations: true },
-        },
-      },
-      orderBy: { name: "asc" },
-    });
+    if (!includeInactive) {
+      queryBuilder.where("amenity.isActive = :isActive", { isActive: true });
+    }
+
+    return queryBuilder.getMany();
   }
 
   async findOne(id: number) {
-    const amenity = await this.prisma.amenity.findUnique({
-      where: { id },
-      include: {
-        locations: {
-          include: {
-            location: {
-              select: {
-                id: true,
-                name: true,
-                type: true,
-                isActive: true,
-              },
-            },
-          },
-        },
-        _count: {
-          select: { locations: true },
-        },
-      },
-    });
+    const amenity = await this.amenityRepo
+      .createQueryBuilder("amenity")
+      .leftJoinAndSelect("amenity.locationAmenities", "locationAmenity")
+      .leftJoin("locationAmenity.location", "location")
+      .addSelect([
+        "location.id",
+        "location.name",
+        "location.type",
+        "location.isActive",
+      ])
+      .where("amenity.id = :id", { id })
+      .getOne();
 
     if (!amenity) {
       throw new NotFoundException(`Amenity with ID ${id} not found`);
@@ -84,16 +79,9 @@ export class AmenityService {
     const amenity = await this.findOne(id); // Check if exists
 
     try {
-      const updated = await this.prisma.amenity.update({
-        where: { id },
-        data: updateAmenityDto,
-        include: {
-          _count: {
-            select: { locations: true },
-          },
-        },
-      });
+      await this.amenityRepo.update(id, updateAmenityDto);
 
+      // If the icon was replaced, delete the old file.
       if (updateAmenityDto.iconUrl && amenity.iconUrl) {
         const absPath = path.join(process.cwd(), "public", amenity.iconUrl);
         try {
@@ -108,11 +96,14 @@ export class AmenityService {
         }
       }
 
-      return updated;
+      return this.amenityRepo
+        .createQueryBuilder("amenity")
+        .where("amenity.id = :id", { id })
+        .getOne();
     } catch (error) {
       if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === "P2002"
+        error instanceof QueryFailedError &&
+        (error as { code?: string }).code === "ER_DUP_ENTRY"
       ) {
         throw new ConflictException(
           `Amenity with name '${updateAmenityDto.name}' already exists`
@@ -126,7 +117,7 @@ export class AmenityService {
     const amenity = await this.findOne(id);
 
     // Check if amenity is being used by any locations
-    const locationCount = await this.prisma.locationAmenity.count({
+    const locationCount = await this.locationAmenityRepo.count({
       where: { amenityId: id },
     });
 
@@ -136,47 +127,36 @@ export class AmenityService {
       );
     }
 
-    return await this.prisma.amenity.delete({
-      where: { id },
-    });
+    await this.amenityRepo.delete(id);
   }
 
   async toggleStatus(id: number) {
     const amenity = await this.findOne(id);
 
-    return await this.prisma.amenity.update({
-      where: { id },
-      data: { isActive: !amenity.isActive },
-      include: {
-        _count: {
-          select: { locations: true },
-        },
-      },
-    });
+    await this.amenityRepo.update(id, { isActive: !amenity.isActive });
+
+    return this.amenityRepo
+      .createQueryBuilder("amenity")
+      .where("amenity.id = :id", { id })
+      .getOne();
   }
 
   async getLocationsByAmenity(id: number) {
     await this.findOne(id); // Check if amenity exists
 
-    return await this.prisma.locationAmenity.findMany({
-      where: { amenityId: id },
-      include: {
-        location: {
-          select: {
-            id: true,
-            name: true,
-            type: true,
-            address: true,
-            isActive: true,
-            business: {
-              select: {
-                id: true,
-                name: true,
-              },
-            },
-          },
-        },
-      },
-    });
+    return this.locationAmenityRepo
+      .createQueryBuilder("locationAmenity")
+      .leftJoin("locationAmenity.location", "location")
+      .addSelect([
+        "location.id",
+        "location.name",
+        "location.type",
+        "location.address",
+        "location.isActive",
+      ])
+      .leftJoin("location.business", "business")
+      .addSelect(["business.id", "business.name"])
+      .where("locationAmenity.amenityId = :id", { id })
+      .getMany();
   }
 }
