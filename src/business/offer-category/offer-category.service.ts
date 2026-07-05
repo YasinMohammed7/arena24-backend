@@ -3,196 +3,114 @@ import {
   NotFoundException,
   ConflictException,
 } from "@nestjs/common";
-import { Prisma, OfferCategory } from "@prisma/client";
-import { PrismaService } from "@/prisma/prisma.service";
+import { InjectRepository } from "@nestjs/typeorm";
+import { Repository } from "typeorm";
+import { OfferCategories } from "@/database/entities/offerCategories";
+import { Offers } from "@/database/entities/offers";
 import { CreateOfferCategoryDto } from "./dto/create-offer-category.dto";
 import { UpdateOfferCategoryDto } from "./dto/update-offer-category.dto";
 import { QueryOfferCategoryDto } from "./dto/query-offer-category.dto";
-import { OfferCategoryResponseDto } from "./dto/offer-category-response.dto";
 
 @Injectable()
 export class OfferCategoryService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    @InjectRepository(OfferCategories)
+    private readonly offerCategoryRepo: Repository<OfferCategories>,
 
-  async create(
-    createOfferCategoryDto: CreateOfferCategoryDto
-  ): Promise<OfferCategoryResponseDto> {
+    @InjectRepository(Offers)
+    private readonly offersRepo: Repository<Offers>
+  ) {}
+
+  async create(createOfferCategoryDto: CreateOfferCategoryDto) {
     const { name } = createOfferCategoryDto;
 
-    // Check if category with the same name already exists
-    const existingCategory = await this.prisma.offerCategory.findUnique({
-      where: { name },
-    });
-
+    const existingCategory = await this.offerCategoryRepo.findOneBy({ name });
     if (existingCategory) {
       throw new ConflictException(
         `Offer category with name '${name}' already exists`
       );
     }
 
-    const category = await this.prisma.offerCategory.create({
-      data: { name },
-    });
-
-    return this.mapToResponseDto(category, 0);
+    const category: OfferCategories = await this.offerCategoryRepo.save(
+      this.offerCategoryRepo.create({ name })
+    );
+    category.offerCount = 0; // brand-new category has no active offers
+    return category;
   }
 
-  async findAll(queryDto: QueryOfferCategoryDto = {}): Promise<{
-    data: OfferCategoryResponseDto[];
-    total: number;
-    page: number;
-    limit: number;
-    totalPages: number;
-  }> {
+  async findAll(queryDto: QueryOfferCategoryDto = {}) {
     const { name, page = 1, limit = 10 } = queryDto;
-    const skip = (page - 1) * limit;
 
-    const where: Prisma.OfferCategoryWhereInput = {};
+    const queryBuilder = this.offerCategoryRepo
+      .createQueryBuilder("category")
+      .orderBy("category.name", "ASC")
+      .skip((page - 1) * limit)
+      .take(limit);
 
-    // Filter by name (partial match)
     if (name) {
-      where.name = {
-        contains: name,
-      };
+      queryBuilder.where("category.name LIKE :name", { name: `%${name}%` });
     }
 
-    const [categories, total] = await Promise.all([
-      this.prisma.offerCategory.findMany({
-        where,
-        skip,
-        take: limit,
-        orderBy: { name: "asc" },
-        include: {
-          _count: {
-            select: {
-              offers: {
-                where: {
-                  startDate: { lte: new Date() },
-                  endDate: { gte: new Date() },
-                },
-              },
-            },
-          },
-        },
-      }),
-      this.prisma.offerCategory.count({ where }),
-    ]);
-
-    const totalPages = Math.ceil(total / limit);
-    const mappedCategories = categories.map((category) =>
-      this.mapToResponseDto(category, category._count.offers)
-    );
+    const [data, total] = await queryBuilder.getManyAndCount();
 
     return {
-      data: mappedCategories,
+      data,
       total,
       page,
       limit,
-      totalPages,
+      totalPages: Math.ceil(total / limit),
     };
   }
 
-  async findOne(id: number): Promise<OfferCategoryResponseDto> {
-    const category = await this.prisma.offerCategory.findUnique({
-      where: { id },
-      include: {
-        _count: {
-          select: {
-            offers: {
-              where: {
-                startDate: { lte: new Date() },
-                endDate: { gte: new Date() },
-              },
-            },
-          },
-        },
-      },
-    });
+  async findOne(id: number) {
+    const category = await this.offerCategoryRepo
+      .createQueryBuilder("category")
+      .where("category.id = :id", { id })
+      .getOne();
 
     if (!category) {
       throw new NotFoundException(`Offer category with ID ${id} not found`);
     }
 
-    return this.mapToResponseDto(category, category._count.offers);
+    return category;
   }
 
-  async findWithOffers(
-    id: number,
-    includeInactive = false
-  ): Promise<{
-    category: OfferCategoryResponseDto;
-    offers: Prisma.OfferGetPayload<{
-      include: {
-        location: {
-          select: {
-            id: true;
-            name: true;
-            type: true;
-            address: true;
-          };
-        };
-      };
-    }>[];
-  }> {
-    const now = new Date();
-    const whereCondition = includeInactive
-      ? {}
-      : {
-          startDate: { lte: now },
-          endDate: { gte: now },
-        };
+  async findWithOffers(id: number, includeInactive = false) {
+    const category = await this.findOne(id); // existence check + offerCount
 
-    const category = await this.prisma.offerCategory.findUnique({
-      where: { id },
-      include: {
-        offers: {
-          where: whereCondition,
-          include: {
-            location: {
-              select: {
-                id: true,
-                name: true,
-                type: true,
-                address: true,
-              },
-            },
-          },
-          orderBy: { endDate: "asc" },
-        },
-      },
-    });
+    const offersQb = this.offersRepo
+      .createQueryBuilder("offer")
+      .leftJoin("offer.location", "location")
+      .addSelect([
+        "location.id",
+        "location.name",
+        "location.type",
+        "location.address",
+      ])
+      .where("offer.categoryId = :id", { id })
+      .orderBy("offer.endDate", "ASC");
 
-    if (!category) {
-      throw new NotFoundException(`Offer category with ID ${id} not found`);
+    if (!includeInactive) {
+      offersQb
+        .andWhere("offer.startDate <= NOW()")
+        .andWhere("offer.endDate >= NOW()");
     }
 
-    return {
-      category: this.mapToResponseDto(category, category.offers.length),
-      offers: category.offers,
-    };
+    const offers = await offersQb.getMany();
+
+    return { category, offers };
   }
 
-  async update(
-    id: number,
-    updateOfferCategoryDto: UpdateOfferCategoryDto
-  ): Promise<OfferCategoryResponseDto> {
+  async update(id: number, updateOfferCategoryDto: UpdateOfferCategoryDto) {
     const { name } = updateOfferCategoryDto;
 
-    // Check if category exists
-    const existingCategory = await this.prisma.offerCategory.findUnique({
-      where: { id },
-    });
-
+    const existingCategory = await this.offerCategoryRepo.findOneBy({ id });
     if (!existingCategory) {
       throw new NotFoundException(`Offer category with ID ${id} not found`);
     }
 
-    // Check if new name conflicts with existing category
     if (name && name !== existingCategory.name) {
-      const nameConflict = await this.prisma.offerCategory.findUnique({
-        where: { name },
-      });
-
+      const nameConflict = await this.offerCategoryRepo.findOneBy({ name });
       if (nameConflict) {
         throw new ConflictException(
           `Offer category with name '${name}' already exists`
@@ -200,121 +118,63 @@ export class OfferCategoryService {
       }
     }
 
-    const category = await this.prisma.offerCategory.update({
-      where: { id },
-      data: updateOfferCategoryDto,
-      include: {
-        _count: {
-          select: {
-            offers: {
-              where: {
-                startDate: { lte: new Date() },
-                endDate: { gte: new Date() },
-              },
-            },
-          },
-        },
-      },
-    });
-
-    return this.mapToResponseDto(category, category._count.offers);
+    await this.offerCategoryRepo.update(id, updateOfferCategoryDto);
+    return this.findOne(id);
   }
 
-  async remove(id: number): Promise<{ message: string }> {
-    // Check if category exists
-    const existingCategory = await this.prisma.offerCategory.findUnique({
-      where: { id },
-      include: {
-        _count: {
-          select: { offers: true },
-        },
-      },
-    });
-
+  async remove(id: number) {
+    const existingCategory = await this.offerCategoryRepo.findOneBy({ id });
     if (!existingCategory) {
       throw new NotFoundException(`Offer category with ID ${id} not found`);
     }
 
-    // Check if category has associated offers
-    if (existingCategory._count.offers > 0) {
+    const offerCount = await this.offersRepo.count({
+      where: { categoryId: id },
+    });
+
+    if (offerCount > 0) {
       throw new ConflictException(
-        `Cannot delete category '${existingCategory.name}' because it has ${existingCategory._count.offers} associated offer(s). Please delete or reassign the offers first.`
+        `Cannot delete category '${existingCategory.name}' because it has ${offerCount} associated offer(s). Please delete or reassign the offers first.`
       );
     }
 
-    await this.prisma.offerCategory.delete({
-      where: { id },
-    });
+    await this.offerCategoryRepo.delete(id);
 
     return {
       message: `Offer category '${existingCategory.name}' has been deleted successfully`,
     };
   }
 
-  async getCategoryStats(): Promise<{
-    totalCategories: number;
-    categoriesWithActiveOffers: number;
-    categoryDistribution: {
-      category: string;
-      totalOffers: number;
-      activeOffers: number;
-    }[];
-  }> {
-    const now = new Date();
+  async getCategoryStats() {
+    // Active count comes from the @VirtualColumn (offerCount); total offers per
+    // category via a single grouped count. Aggregates are derived in memory.
+    const categories = await this.offerCategoryRepo
+      .createQueryBuilder("category")
+      .orderBy("category.name", "ASC")
+      .getMany();
 
-    const [total, categoriesWithOffers, distribution] = await Promise.all([
-      this.prisma.offerCategory.count(),
-      this.prisma.offerCategory.count({
-        where: {
-          offers: {
-            some: {
-              startDate: { lte: now },
-              endDate: { gte: now },
-            },
-          },
-        },
-      }),
-      this.prisma.offerCategory.findMany({
-        include: {
-          _count: {
-            select: {
-              offers: true,
-            },
-          },
-          offers: {
-            where: {
-              startDate: { lte: now },
-              endDate: { gte: now },
-            },
-          },
-        },
-        orderBy: { name: "asc" },
-      }),
-    ]);
+    const totals = await this.offersRepo
+      .createQueryBuilder("offer")
+      .select("offer.categoryId", "categoryId")
+      .addSelect("COUNT(*)", "total")
+      .groupBy("offer.categoryId")
+      .getRawMany<{ categoryId: number; total: string }>();
 
-    const categoryDistribution = distribution.map((category) => ({
+    const totalByCategory = new Map(
+      totals.map((t) => [t.categoryId, Number(t.total)])
+    );
+
+    const categoryDistribution = categories.map((category) => ({
       category: category.name,
-      totalOffers: category._count.offers,
-      activeOffers: category.offers.length,
+      totalOffers: totalByCategory.get(category.id) ?? 0,
+      activeOffers: category.offerCount,
     }));
 
     return {
-      totalCategories: total,
-      categoriesWithActiveOffers: categoriesWithOffers,
+      totalCategories: categories.length,
+      categoriesWithActiveOffers: categories.filter((c) => c.offerCount > 0)
+        .length,
       categoryDistribution,
-    };
-  }
-
-  private mapToResponseDto(
-    category: OfferCategory,
-    offerCount: number
-  ): OfferCategoryResponseDto {
-    return {
-      id: category.id,
-      name: category.name,
-      offerCount,
-      createdAt: category.createdAt,
-      updatedAt: category.updatedAt,
     };
   }
 }
