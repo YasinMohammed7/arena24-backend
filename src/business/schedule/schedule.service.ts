@@ -3,18 +3,27 @@ import {
   NotFoundException,
   ConflictException,
 } from "@nestjs/common";
-import { PrismaService } from "@/prisma/prisma.service";
+import { InjectRepository } from "@nestjs/typeorm";
+import { Repository, Not } from "typeorm";
+import { Schedules } from "@/database/entities/schedules";
+import { Locations } from "@/database/entities/locations";
 import { CreateScheduleDto } from "./dto/create-schedule.dto";
 import { UpdateScheduleDto } from "./dto/update-schedule.dto";
 
 @Injectable()
 export class ScheduleService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    @InjectRepository(Schedules)
+    private readonly scheduleRepo: Repository<Schedules>,
+
+    @InjectRepository(Locations)
+    private readonly locationRepo: Repository<Locations>
+  ) {}
 
   async create(createScheduleDto: CreateScheduleDto) {
     // Check if location exists
-    const location = await this.prisma.location.findUnique({
-      where: { id: createScheduleDto.locationId },
+    const location = await this.locationRepo.findOneBy({
+      id: createScheduleDto.locationId,
     });
 
     if (!location) {
@@ -22,11 +31,9 @@ export class ScheduleService {
     }
 
     // Check for duplicate schedule for the same location and day
-    const existingSchedule = await this.prisma.schedules.findFirst({
-      where: {
-        locationId: createScheduleDto.locationId,
-        dayOfWeek: createScheduleDto.dayOfWeek,
-      },
+    const existingSchedule = await this.scheduleRepo.findOneBy({
+      locationId: createScheduleDto.locationId,
+      dayOfWeek: createScheduleDto.dayOfWeek,
     });
 
     if (existingSchedule) {
@@ -35,55 +42,34 @@ export class ScheduleService {
       );
     }
 
-    return this.prisma.schedules.create({
-      data: createScheduleDto,
-      include: {
-        location: {
-          select: {
-            id: true,
-            name: true,
-            type: true,
-          },
-        },
-      },
-    });
+    const schedule = this.scheduleRepo.create(createScheduleDto);
+    const saved: Schedules = await this.scheduleRepo.save(schedule);
+    return this.findOne(saved.id);
   }
 
   async findAll(locationId?: number) {
-    const where = locationId ? { locationId } : {};
+    const queryBuilder = this.scheduleRepo
+      .createQueryBuilder("schedule")
+      .leftJoin("schedule.location", "location")
+      .addSelect(["location.id", "location.name", "location.type"])
+      .orderBy("schedule.locationId", "ASC")
+      .addOrderBy("schedule.dayOfWeek", "ASC")
+      .addOrderBy("schedule.startTime", "ASC");
 
-    return this.prisma.schedules.findMany({
-      where,
-      include: {
-        location: {
-          select: {
-            id: true,
-            name: true,
-            type: true,
-          },
-        },
-      },
-      orderBy: [
-        { locationId: "asc" },
-        { dayOfWeek: "asc" },
-        { startTime: "asc" },
-      ],
-    });
+    if (locationId) {
+      queryBuilder.where("schedule.locationId = :locationId", { locationId });
+    }
+
+    return queryBuilder.getMany();
   }
 
   async findOne(id: number) {
-    const schedule = await this.prisma.schedules.findUnique({
-      where: { id },
-      include: {
-        location: {
-          select: {
-            id: true,
-            name: true,
-            type: true,
-          },
-        },
-      },
-    });
+    const schedule = await this.scheduleRepo
+      .createQueryBuilder("schedule")
+      .leftJoin("schedule.location", "location")
+      .addSelect(["location.id", "location.name", "location.type"])
+      .where("schedule.id = :id", { id })
+      .getOne();
 
     if (!schedule) {
       throw new NotFoundException("Schedule not found");
@@ -93,9 +79,9 @@ export class ScheduleService {
   }
 
   async findByLocation(locationId: number) {
-    return this.prisma.schedules.findMany({
+    return this.scheduleRepo.find({
       where: { locationId },
-      orderBy: [{ dayOfWeek: "asc" }, { startTime: "asc" }],
+      order: { dayOfWeek: "ASC", startTime: "ASC" },
     });
   }
 
@@ -104,11 +90,11 @@ export class ScheduleService {
 
     // If updating locationId and dayOfWeek, check for conflicts
     if (updateScheduleDto.locationId && updateScheduleDto.dayOfWeek) {
-      const existingSchedule = await this.prisma.schedules.findFirst({
+      const existingSchedule = await this.scheduleRepo.findOne({
         where: {
           locationId: updateScheduleDto.locationId,
           dayOfWeek: updateScheduleDto.dayOfWeek,
-          NOT: { id },
+          id: Not(id),
         },
       });
 
@@ -119,26 +105,14 @@ export class ScheduleService {
       }
     }
 
-    return this.prisma.schedules.update({
-      where: { id },
-      data: updateScheduleDto,
-      include: {
-        location: {
-          select: {
-            id: true,
-            name: true,
-            type: true,
-          },
-        },
-      },
-    });
+    await this.scheduleRepo.update(id, updateScheduleDto);
+    return this.findOne(id);
   }
 
   async remove(id: number) {
-    await this.findOne(id); // Check if exists
+    const schedule = await this.findOne(id); // Check if exists
 
-    return this.prisma.schedules.delete({
-      where: { id },
-    });
+    await this.scheduleRepo.delete(id);
+    return schedule;
   }
 }

@@ -19,13 +19,15 @@ export class Schedules {
   @Column("int", { name: "locationId" })
   locationId: number;
 
-  @Column("varchar", { name: "dayOfWeek", length: 191 })
-  dayOfWeek: string;
+  // ISO 8601 weekday: 1 = Monday ... 7 = Sunday. Localized (luni/Monday) in the UI.
+  @Column("tinyint", { name: "dayOfWeek", unsigned: true })
+  dayOfWeek: number;
 
-  @Column("varchar", { name: "startTime", length: 191 })
+  // Wall-clock time of day, e.g. "09:00:00".
+  @Column("time", { name: "startTime" })
   startTime: string;
 
-  @Column("varchar", { name: "endTime", length: 191 })
+  @Column("time", { name: "endTime" })
   endTime: string;
 
   @CreateDateColumn({ name: "createdAt", precision: 3 })
