@@ -6,6 +6,7 @@ import {
   OneToMany,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
+  VirtualColumn,
 } from "typeorm";
 import { EventFacilities } from "./eventFacilities";
 import { LocationFacilities } from "./locationFacilities";
@@ -40,4 +41,11 @@ export class Facilities {
     (locationFacilities) => locationFacilities.facility
   )
   locationFacilities: LocationFacilities[];
+
+  // Read-only count of linked locations, computed per query (not persisted).
+  @VirtualColumn({
+    query: (alias) =>
+      `SELECT COUNT(*) FROM location_facilities WHERE facilityId = ${alias}.id`,
+  })
+  locationsCount: number;
 }
