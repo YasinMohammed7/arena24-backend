@@ -32,6 +32,7 @@ import { OfferCategoryResponseDto } from "./dto/offer-category-response.dto";
 import { JwtAuthGuard } from "@/auth/guards/jwt-auth.guard";
 import { AuthorizationGuard } from "@/auth/guards/authorization.guard";
 import { HasRoleOr } from "@/auth/decorators/authorize.decorator";
+import { ApiPaginatedResponse } from "@/common/decorators/api-paginated-response.decorator";
 
 @ApiTags("Offer Categories")
 @ApiBearerAuth("access-token")
@@ -66,23 +67,7 @@ export class OfferCategoryController {
   @ApiOperation({
     summary: "Get all offer categories with optional filtering and pagination",
   })
-  @ApiResponse({
-    status: HttpStatus.OK,
-    description: "Offer categories retrieved successfully",
-    schema: {
-      type: "object",
-      properties: {
-        data: {
-          type: "array",
-          items: { $ref: "#/components/schemas/OfferCategoryResponseDto" },
-        },
-        total: { type: "number" },
-        page: { type: "number" },
-        limit: { type: "number" },
-        totalPages: { type: "number" },
-      },
-    },
-  })
+  @ApiPaginatedResponse(OfferCategoryResponseDto)
   @ApiQuery({
     name: "name",
     required: false,

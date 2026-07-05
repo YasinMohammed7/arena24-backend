@@ -7,6 +7,7 @@ import {
   ManyToOne,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
+  VirtualColumn,
 } from "typeorm";
 import { OfferCategories } from "./offerCategories";
 import { Locations } from "./locations";
@@ -62,4 +63,15 @@ export class Offers {
   })
   @JoinColumn([{ name: "locationId", referencedColumnName: "id" }])
   location: Locations;
+
+  // Read-only: whether the offer is currently active (not persisted).
+  @VirtualColumn({
+    query: (alias) =>
+      `SELECT ${alias}.startDate <= NOW() AND ${alias}.endDate >= NOW()`,
+    transformer: {
+      to: (value: boolean) => value,
+      from: (value: number) => Boolean(value),
+    },
+  })
+  isActive: boolean;
 }
