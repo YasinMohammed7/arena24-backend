@@ -10,20 +10,65 @@ import {
   UploadedFile,
   UploadedFiles,
   UseGuards,
+  ParseIntPipe,
+  HttpStatus,
+  ParseFilePipe,
+  MaxFileSizeValidator,
+  FileTypeValidator,
 } from "@nestjs/common";
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiParam,
+  ApiBadRequestResponse,
+  ApiNotFoundResponse,
+  ApiBearerAuth,
+  ApiConsumes,
+  ApiBody,
+} from "@nestjs/swagger";
+import { FileInterceptor, FilesInterceptor } from "@nestjs/platform-express";
+
 import { LocationsService } from "./locations.service";
 import { CreateLocationDto } from "./dto/create-location.dto";
 import { UpdateLocationDto } from "./dto/update-location.dto";
-import { FileInterceptor, FilesInterceptor } from "@nestjs/platform-express";
-import { diskStorage } from "multer";
-import { extname, join } from "path";
-import * as fs from "fs";
+
 import { JwtAuthGuard } from "@/auth/guards/jwt-auth.guard";
 import { AuthorizationGuard } from "@/auth/guards/authorization.guard";
 import { HasRoleOr } from "@/auth/decorators/authorize.decorator";
 
+import {
+  locationCoverUploadOptions,
+  locationGalleryUploadOptions,
+  MAX_LOCATION_COVER_SIZE,
+  MAX_LOCATION_GALLERY_IMAGE_SIZE,
+  MAX_LOCATION_GALLERY_FILES,
+} from "./multer.config";
+
+const imageFileValidator = new FileTypeValidator({
+  fileType: /^image\/(jpeg|png|webp|svg\+xml)$/,
+});
+
+const coverFilePipe = new ParseFilePipe({
+  fileIsRequired: false,
+  validators: [
+    new MaxFileSizeValidator({ maxSize: MAX_LOCATION_COVER_SIZE }),
+    imageFileValidator,
+  ],
+});
+
+const galleryFilesPipe = new ParseFilePipe({
+  fileIsRequired: true,
+  validators: [
+    new MaxFileSizeValidator({ maxSize: MAX_LOCATION_GALLERY_IMAGE_SIZE }),
+    imageFileValidator,
+  ],
+});
+
+@ApiTags("Locations")
 @Controller("business/locations")
 @UseGuards(JwtAuthGuard)
+@ApiBearerAuth("access-token")
 export class LocationsController {
   constructor(private readonly locationsService: LocationsService) {}
 
@@ -33,38 +78,67 @@ export class LocationsController {
     ["create:any", "create:location"]
   )
   @Post()
-  @UseInterceptors(
-    FileInterceptor("cover_image", {
-      storage: diskStorage({
-        destination: "./public/uploads/restaurants/covers",
-        filename: (req, file, cb) => {
-          const uniqueSuffix =
-            Date.now() + "-" + Math.round(Math.random() * 1e9);
-          cb(null, uniqueSuffix + extname(file.originalname));
+  @ApiOperation({ summary: "Create a new location" })
+  @ApiConsumes("multipart/form-data")
+  @ApiBody({
+    schema: {
+      type: "object",
+      required: ["name", "businessId"],
+      properties: {
+        name: { type: "string" },
+        description: { type: "string" },
+        address: { type: "string" },
+        phone: { type: "string" },
+        email: { type: "string" },
+        businessId: { type: "number" },
+        ownerId: { type: "string" },
+        cover_image: {
+          type: "string",
+          format: "binary",
         },
-      }),
-    })
-  )
+      },
+    },
+  })
+  @ApiResponse({
+    status: HttpStatus.CREATED,
+    description: "Location created successfully",
+  })
+  @ApiBadRequestResponse({
+    description: "Invalid input data or invalid cover image",
+  })
+  @UseInterceptors(FileInterceptor("cover_image", locationCoverUploadOptions))
   create(
     @Body() createLocationDto: CreateLocationDto,
-    @UploadedFile() file: Express.Multer.File
+    @UploadedFile(coverFilePipe) file?: Express.Multer.File
   ) {
     return this.locationsService.create({
       ...createLocationDto,
       imageUrl: file
         ? `/uploads/restaurants/covers/${file.filename}`
-        : undefined,
+        : createLocationDto.imageUrl,
     });
   }
 
   @Get()
+  @ApiOperation({ summary: "Get all locations" })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: "Locations retrieved successfully",
+  })
   findAll() {
     return this.locationsService.findAll();
   }
 
   @Get(":id")
-  findOne(@Param("id") id: string) {
-    return this.locationsService.findOne(+id);
+  @ApiOperation({ summary: "Get location by ID" })
+  @ApiParam({ name: "id", type: "number", description: "Location ID" })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: "Location retrieved successfully",
+  })
+  @ApiNotFoundResponse({ description: "Location not found" })
+  findOne(@Param("id", ParseIntPipe) id: number) {
+    return this.locationsService.findOne(id);
   }
 
   @UseGuards(AuthorizationGuard)
@@ -73,11 +147,19 @@ export class LocationsController {
     ["update:any", "update:location"]
   )
   @Patch(":id")
+  @ApiOperation({ summary: "Update a location" })
+  @ApiParam({ name: "id", type: "number", description: "Location ID" })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: "Location updated successfully",
+  })
+  @ApiNotFoundResponse({ description: "Location not found" })
+  @ApiBadRequestResponse({ description: "Invalid input data" })
   update(
-    @Param("id") id: string,
+    @Param("id", ParseIntPipe) id: number,
     @Body() updateLocationDto: UpdateLocationDto
   ) {
-    return this.locationsService.update(+id, updateLocationDto);
+    return this.locationsService.update(id, updateLocationDto);
   }
 
   @UseGuards(AuthorizationGuard)
@@ -86,48 +168,62 @@ export class LocationsController {
     ["delete:any", "delete:location"]
   )
   @Delete(":id")
-  remove(@Param("id") id: string) {
-    return this.locationsService.remove(+id);
+  @ApiOperation({ summary: "Delete a location" })
+  @ApiParam({ name: "id", type: "number", description: "Location ID" })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: "Location deleted successfully",
+  })
+  @ApiNotFoundResponse({ description: "Location not found" })
+  remove(@Param("id", ParseIntPipe) id: number) {
+    return this.locationsService.remove(id);
   }
 
+  @UseGuards(AuthorizationGuard)
+  @HasRoleOr(
+    ["BUSINESS_OWNER", "PLATFORM_MANAGER"],
+    ["update:any", "update:location"]
+  )
   @Post(":id/gallery")
+  @ApiOperation({ summary: "Upload location gallery images" })
+  @ApiParam({ name: "id", type: "number", description: "Location ID" })
+  @ApiConsumes("multipart/form-data")
+  @ApiBody({
+    schema: {
+      type: "object",
+      required: ["images"],
+      properties: {
+        images: {
+          type: "array",
+          maxItems: MAX_LOCATION_GALLERY_FILES,
+          items: {
+            type: "string",
+            format: "binary",
+          },
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: HttpStatus.CREATED,
+    description: "Gallery uploaded successfully",
+  })
+  @ApiBadRequestResponse({
+    description: "Invalid image files",
+  })
+  @ApiNotFoundResponse({ description: "Location not found" })
   @UseInterceptors(
-    FilesInterceptor("images", 10, {
-      storage: diskStorage({
-        destination: (req, file, cb) => {
-          const restaurantId = req.params.id;
-          // Use process.cwd() to get the project root directory
-          const uploadPath = join(
-            process.cwd(),
-            "public",
-            "uploads",
-            "restaurants",
-            restaurantId,
-            "gallery"
-          );
-
-          // Create folder if it doesn't exist with error handling
-          try {
-            fs.mkdirSync(uploadPath, { recursive: true });
-            cb(null, uploadPath);
-          } catch (error) {
-            console.error("Error creating upload directory:", error);
-            cb(error instanceof Error ? error : new Error(String(error)), "");
-          }
-        },
-        filename: (req, file, cb) => {
-          const uniqueSuffix =
-            Date.now() + "-" + Math.round(Math.random() * 1e9);
-          cb(null, uniqueSuffix + extname(file.originalname));
-        },
-      }),
-    })
+    FilesInterceptor(
+      "images",
+      MAX_LOCATION_GALLERY_FILES,
+      locationGalleryUploadOptions
+    )
   )
   async uploadGallery(
-    @Param("id") restaurantId: string,
-    @UploadedFiles() files: Express.Multer.File[]
+    @Param("id", ParseIntPipe) locationId: number,
+    @UploadedFiles(galleryFilesPipe) files: Express.Multer.File[]
   ) {
-    return this.locationsService.addGallery(+restaurantId, files);
+    return this.locationsService.addGallery(locationId, files);
   }
 
   @UseGuards(AuthorizationGuard)
@@ -136,13 +232,31 @@ export class LocationsController {
     ["update:any", "update:location"]
   )
   @Patch(":locationId/facility/:facilityId/toggle-status")
+  @ApiOperation({ summary: "Toggle location facility status" })
+  @ApiParam({
+    name: "locationId",
+    type: "number",
+    description: "Location ID",
+  })
+  @ApiParam({
+    name: "facilityId",
+    type: "number",
+    description: "Facility ID",
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: "Location facility status toggled successfully",
+  })
+  @ApiNotFoundResponse({
+    description: "Location-facility relation not found",
+  })
   toggleLocationFacilityStatus(
-    @Param("locationId") locationId: string,
-    @Param("facilityId") facilityId: string
+    @Param("locationId", ParseIntPipe) locationId: number,
+    @Param("facilityId", ParseIntPipe) facilityId: number
   ) {
     return this.locationsService.toggleLocationFacilityStatus(
-      +locationId,
-      +facilityId
+      locationId,
+      facilityId
     );
   }
 
@@ -152,13 +266,31 @@ export class LocationsController {
     ["update:any", "update:location"]
   )
   @Patch(":locationId/amenity/:amenityId/toggle-status")
+  @ApiOperation({ summary: "Toggle location amenity status" })
+  @ApiParam({
+    name: "locationId",
+    type: "number",
+    description: "Location ID",
+  })
+  @ApiParam({
+    name: "amenityId",
+    type: "number",
+    description: "Amenity ID",
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: "Location amenity status toggled successfully",
+  })
+  @ApiNotFoundResponse({
+    description: "Location-amenity relation not found",
+  })
   toggleLocationAmenityStatus(
-    @Param("locationId") locationId: string,
-    @Param("amenityId") amenityId: string
+    @Param("locationId", ParseIntPipe) locationId: number,
+    @Param("amenityId", ParseIntPipe) amenityId: number
   ) {
     return this.locationsService.toggleLocationAmenityStatus(
-      +locationId,
-      +amenityId
+      locationId,
+      amenityId
     );
   }
 }

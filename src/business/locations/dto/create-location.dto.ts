@@ -76,7 +76,7 @@ export class CreateLocationDto {
   @IsOptional()
   @IsArray()
   schedules?: {
-    dayOfWeek: string;
+    dayOfWeek: number; // ISO 8601 weekday: 1 = Monday ... 7 = Sunday
     startTime: string;
     endTime: string;
   }[];
