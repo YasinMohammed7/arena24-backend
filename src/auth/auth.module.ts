@@ -9,13 +9,23 @@ import { PermissionsModule } from "@/auth/permissions/permissions.module";
 import { MailModule } from "@/mail/mail.module";
 import { SmsModule } from "@/sms/sms.module";
 import { User } from "@/database/entities/user";
+import { VerificationCodes } from "@/database/entities/verificationCodes";
+import { Role } from "@/database/entities/role";
+import { RefreshTokens } from "@/database/entities/refreshTokens";
+import { PasswordResetTokens } from "@/database/entities/passwordResetTokens";
 
 @Module({
   imports: [
     JwtModule.register({
       secret: process.env.JWT_SECRET,
     }),
-    TypeOrmModule.forFeature([User]),
+    TypeOrmModule.forFeature([
+      User,
+      VerificationCodes,
+      Role,
+      RefreshTokens,
+      PasswordResetTokens,
+    ]),
     RolesModule,
     PermissionsModule,
     MailModule,
