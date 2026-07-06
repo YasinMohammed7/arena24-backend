@@ -26,12 +26,6 @@ export class EventService {
     @InjectRepository(EventFacilities)
     private readonly eventFacilitiesRepo: Repository<EventFacilities>,
 
-    @InjectRepository(EventIncludedOptions)
-    private readonly eventIncludedOptionsRepo: Repository<EventIncludedOptions>,
-
-    @InjectRepository(EventRequirements)
-    private readonly eventRequirementsRepo: Repository<EventRequirements>,
-
     private readonly dataSource: DataSource
   ) {}
 
