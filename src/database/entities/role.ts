@@ -1,10 +1,12 @@
 import {
   Column,
+  CreateDateColumn,
   Entity,
   Index,
   ManyToMany,
   OneToMany,
   PrimaryGeneratedColumn,
+  UpdateDateColumn,
 } from "typeorm";
 import { Permission } from "./permission";
 import { UserBusinessRoles } from "./userBusinessRoles";
@@ -30,4 +32,10 @@ export class Role {
 
   @OneToMany(() => UserRoles, (userRoles) => userRoles.role)
   userRoles: UserRoles[];
+
+  @CreateDateColumn({ name: "createdAt" })
+  createdAt: Date;
+
+  @UpdateDateColumn({ name: "updatedAt" })
+  updatedAt: Date;
 }

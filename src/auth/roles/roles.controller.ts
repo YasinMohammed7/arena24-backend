@@ -6,13 +6,26 @@ import {
   Param,
   Delete,
   UseGuards,
+  ParseUUIDPipe,
 } from "@nestjs/common";
+import {
+  ApiBadRequestResponse,
+  ApiBearerAuth,
+  ApiConflictResponse,
+  ApiNotFoundResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiParam,
+  ApiTags,
+} from "@nestjs/swagger";
 import { RolesService } from "./roles.service";
 import { CreateRoleDto, AssignRoleDto } from "./dto/create-role.dto";
 import { AuthGuard } from "@nestjs/passport";
 import { AuthorizationGuard } from "@/auth/guards/authorization.guard";
 import { HasRoleOr } from "@/auth/decorators/authorize.decorator";
 
+@ApiTags("Roles")
+@ApiBearerAuth("access-token")
 @UseGuards(AuthGuard("jwt")) // Apply JWT guard to all endpoints
 @Controller("roles")
 export class RolesController {
@@ -22,6 +35,10 @@ export class RolesController {
   @UseGuards(AuthorizationGuard)
   @HasRoleOr(["PLATFORM_ADMIN"], ["create:role"])
   @Post("roles")
+  @ApiOperation({ summary: "Create a role" })
+  @ApiOkResponse({ description: "Role created successfully" })
+  @ApiBadRequestResponse({ description: "Invalid role payload" })
+  @ApiConflictResponse({ description: "Role name already exists" })
   createRole(@Body() createRoleDto: CreateRoleDto) {
     return this.rolesService.createRole(createRoleDto);
   }
@@ -29,6 +46,8 @@ export class RolesController {
   @UseGuards(AuthorizationGuard)
   @HasRoleOr(["PLATFORM_ADMIN"], ["read:roles"])
   @Get("roles")
+  @ApiOperation({ summary: "Get all roles" })
+  @ApiOkResponse({ description: "Roles retrieved successfully" })
   getRoles() {
     return this.rolesService.getRoles();
   }
@@ -36,20 +55,46 @@ export class RolesController {
   @UseGuards(AuthorizationGuard)
   @HasRoleOr(["PLATFORM_ADMIN"], ["read:role"])
   @Get("roles/:id")
-  getRoleById(@Param("id") id: string) {
+  @ApiOperation({ summary: "Get a role by ID" })
+  @ApiParam({
+    name: "id",
+    type: "string",
+    format: "uuid",
+    description: "Role ID",
+  })
+  @ApiOkResponse({ description: "Role retrieved successfully" })
+  @ApiNotFoundResponse({ description: "Role not found" })
+  getRoleById(@Param("id", ParseUUIDPipe) id: string) {
     return this.rolesService.getRoleById(id);
   }
 
   @UseGuards(AuthorizationGuard)
   @HasRoleOr(["PLATFORM_ADMIN"], ["delete:role"])
   @Delete("role/:id")
-  deleteRole(@Param("id") id: string) {
+  @ApiOperation({ summary: "Delete a role" })
+  @ApiParam({
+    name: "id",
+    type: "string",
+    format: "uuid",
+    description: "Role ID",
+  })
+  @ApiOkResponse({ description: "Role deleted successfully" })
+  @ApiNotFoundResponse({ description: "Role not found" })
+  @ApiConflictResponse({
+    description: "Cannot delete role that has users assigned to it",
+  })
+  deleteRole(@Param("id", ParseUUIDPipe) id: string) {
     return this.rolesService.deleteRole(id);
   }
   // Assignment endpoints
   @UseGuards(AuthorizationGuard)
   @HasRoleOr(["PLATFORM_ADMIN"], ["assign:role"])
   @Post("assign-role")
+  @ApiOperation({ summary: "Assign a role to a user" })
+  @ApiOkResponse({ description: "Role assigned to user successfully" })
+  @ApiBadRequestResponse({ description: "Invalid assignment payload" })
+  @ApiNotFoundResponse({ description: "User or role not found" })
+  @ApiConflictResponse({ description: "User already has this role" })
   assignRole(@Body() assignRoleDto: AssignRoleDto) {
     return this.rolesService.assignRoleToUser(
       assignRoleDto.userId,
@@ -60,7 +105,25 @@ export class RolesController {
   @UseGuards(AuthorizationGuard)
   @HasRoleOr(["PLATFORM_ADMIN"], ["revoke:role"])
   @Delete("assign-role/:userId/:roleId")
-  removeRole(@Param("userId") userId: string, @Param("roleId") roleId: string) {
+  @ApiOperation({ summary: "Remove a role from a user" })
+  @ApiParam({
+    name: "userId",
+    type: "string",
+    format: "uuid",
+    description: "User ID",
+  })
+  @ApiParam({
+    name: "roleId",
+    type: "string",
+    format: "uuid",
+    description: "Role ID",
+  })
+  @ApiOkResponse({ description: "Role removed from user successfully" })
+  @ApiNotFoundResponse({ description: "User role assignment not found" })
+  removeRole(
+    @Param("userId", ParseUUIDPipe) userId: string,
+    @Param("roleId", ParseUUIDPipe) roleId: string
+  ) {
     return this.rolesService.removeRoleFromUser(userId, roleId);
   }
 
@@ -68,7 +131,15 @@ export class RolesController {
   @UseGuards(AuthorizationGuard)
   @HasRoleOr(["PLATFORM_ADMIN"], ["read:userRoles"])
   @Get("users/:userId/roles")
-  getUserRoles(@Param("userId") userId: string) {
+  @ApiOperation({ summary: "Get roles assigned to a user" })
+  @ApiParam({
+    name: "userId",
+    type: "string",
+    format: "uuid",
+    description: "User ID",
+  })
+  @ApiOkResponse({ description: "User roles retrieved successfully" })
+  getUserRoles(@Param("userId", ParseUUIDPipe) userId: string) {
     return this.rolesService.getUserRoles(userId);
   }
 }
