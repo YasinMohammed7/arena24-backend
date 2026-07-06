@@ -2,129 +2,144 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
-} from '@nestjs/common';
-import { PrismaService } from '@/prisma/prisma.service';
-import { CreateEventDto } from './dto/create-event.dto';
-import { UpdateEventDto } from './dto/update-event.dto';
+  ConflictException,
+} from "@nestjs/common";
+import { CreateEventDto } from "./dto/create-event.dto";
+import { UpdateEventDto } from "./dto/update-event.dto";
+import { DataSource, QueryFailedError, Repository } from "typeorm";
+import { Locations } from "@/database/entities/locations";
+import { Event } from "@/database/entities/event";
+import { EventFacilities } from "@/database/entities/eventFacilities";
+import { InjectRepository } from "@nestjs/typeorm";
+import { EventRequirements } from "@/database/entities/eventRequirements";
+import { EventIncludedOptions } from "@/database/entities/eventIncludedOptions";
 
 @Injectable()
 export class EventService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    @InjectRepository(Locations)
+    private readonly locationRepo: Repository<Locations>,
+
+    @InjectRepository(Event)
+    private readonly eventRepo: Repository<Event>,
+
+    @InjectRepository(EventFacilities)
+    private readonly eventFacilitiesRepo: Repository<EventFacilities>,
+
+    @InjectRepository(EventIncludedOptions)
+    private readonly eventIncludedOptionsRepo: Repository<EventIncludedOptions>,
+
+    @InjectRepository(EventRequirements)
+    private readonly eventRequirementsRepo: Repository<EventRequirements>,
+
+    private readonly dataSource: DataSource
+  ) {}
 
   async create(createEventDto: CreateEventDto) {
     const { facilityIds, includedOptions, requirements, ...eventData } =
       createEventDto;
 
-    // Verify location exists
-    const location = await this.prisma.location.findUnique({
-      where: { id: createEventDto.locationId },
+    const location = await this.locationRepo.findOne({
+      where: { id: eventData.locationId },
     });
 
     if (!location) {
-      throw new BadRequestException('Location not found');
+      throw new BadRequestException("Location not found");
     }
 
     try {
-      return await this.prisma.event.create({
-        data: {
+      const eventId = await this.dataSource.transaction(async (manager) => {
+        const event = manager.create(Event, {
           ...eventData,
-          date: new Date(`${eventData.date}T00:00:00.000Z`),
-          startHour: new Date(
-            `${eventData.date}T${eventData.startHour}:00.000Z`,
-          ),
-          endHour: new Date(`${eventData.date}T${eventData.endHour}:00.000Z`),
-          facilities: facilityIds?.length
-            ? {
-                create: facilityIds.map((facilityId) => ({
-                  facility: { connect: { id: facilityId } },
-                })),
-              }
-            : undefined,
-          includedOptions: includedOptions?.length
-            ? {
-                create: includedOptions.map((name) => ({ name })),
-              }
-            : undefined,
-          requirements: requirements?.length
-            ? {
-                create: requirements.map((name) => ({ name })),
-              }
-            : undefined,
-        },
-        include: {
-          location: {
-            select: { id: true, name: true, address: true },
-          },
-          facilities: {
-            include: { facility: true },
-          },
-          includedOptions: true,
-          requirements: true,
-          _count: {
-            select: { reservations: true },
-          },
-        },
+          date: new Date(eventData.date),
+          startHour: new Date(eventData.startHour),
+          endHour: new Date(eventData.endHour),
+        });
+
+        const savedEvent = await manager.save(Event, event);
+
+        if (facilityIds?.length) {
+          await manager.insert(
+            EventFacilities,
+            facilityIds.map((facilityId) => ({
+              eventId: savedEvent.id,
+              facilityId,
+            }))
+          );
+        }
+
+        if (includedOptions?.length) {
+          await manager.insert(
+            EventIncludedOptions,
+            includedOptions.map((name) => ({
+              eventId: savedEvent.id,
+              name,
+            }))
+          );
+        }
+
+        if (requirements?.length) {
+          await manager.insert(
+            EventRequirements,
+            requirements.map((name) => ({
+              eventId: savedEvent.id,
+              name,
+            }))
+          );
+        }
+
+        return savedEvent.id;
       });
-    } catch (error: any) {
-      if (error.code === 'P2002') {
-        throw new BadRequestException(
-          'Event with this name already exists at this location',
-        );
+
+      return this.findOne(eventId);
+    } catch (error) {
+      if (error instanceof QueryFailedError) {
+        const driverError = error.driverError as {
+          code?: string;
+
+          errno?: number;
+        };
+
+        if (driverError.code === "ER_DUP_ENTRY" || driverError.errno === 1062) {
+          throw new ConflictException(
+            `Event with name '${createEventDto.name}' already exists at this location`
+          );
+        }
       }
+
       throw error;
     }
   }
 
   async findAll() {
-    return await this.prisma.event.findMany({
-      include: {
-        location: {
-          select: { id: true, name: true, address: true },
+    return this.eventRepo.find({
+      relations: {
+        location: true,
+        eventFacilities: {
+          facility: true,
         },
-        facilities: {
-          include: { facility: true },
-        },
-        includedOptions: true,
-        requirements: true,
-        _count: {
-          select: { reservations: true },
-        },
+        eventIncludedOptions: true,
+        eventRequirements: true,
       },
-      orderBy: { date: 'asc' },
+      order: {
+        date: "ASC",
+      },
     });
   }
 
   async findOne(id: number) {
-    const event = await this.prisma.event.findUnique({
+    const event = await this.eventRepo.findOne({
       where: { id },
-      include: {
+      relations: {
         location: {
-          select: {
-            id: true,
-            name: true,
-            address: true,
-            business: { select: { id: true, name: true } },
-          },
+          business: true,
         },
-        facilities: {
-          include: { facility: true },
+        eventFacilities: {
+          facility: true,
         },
-        includedOptions: true,
-        requirements: true,
-        reservations: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            phone: true,
-            peopleCount: true,
-            status: true,
-            createdAt: true,
-          },
-        },
-        _count: {
-          select: { reservations: true },
-        },
+        eventIncludedOptions: true,
+        eventRequirements: true,
+        reservations: true,
       },
     });
 
@@ -136,13 +151,8 @@ export class EventService {
   }
 
   async update(id: number, updateEventDto: UpdateEventDto) {
-    const existingEvent = await this.prisma.event.findUnique({
+    const existingEvent = await this.eventRepo.findOne({
       where: { id },
-      include: {
-        facilities: true,
-        includedOptions: true,
-        requirements: true,
-      },
     });
 
     if (!existingEvent) {
@@ -153,167 +163,176 @@ export class EventService {
       updateEventDto;
 
     try {
-      return await this.prisma.event.update({
-        where: { id },
-        data: {
+      await this.dataSource.transaction(async (manager) => {
+        const scalarUpdate = {
           ...eventData,
           ...(eventData.date && {
-            date: new Date(`${eventData.date}T00:00:00.000Z`),
+            date: new Date(eventData.date),
           }),
-          ...(eventData.startHour &&
-            eventData.date && {
-              startHour: new Date(
-                `${eventData.date}T${eventData.startHour}:00.000Z`,
-              ),
-            }),
-          ...(eventData.endHour &&
-            eventData.date && {
-              endHour: new Date(
-                `${eventData.date}T${eventData.endHour}:00.000Z`,
-              ),
-            }),
-          // Handle case where only time is updated but date exists in existing event
-          ...(eventData.startHour &&
-            !eventData.date && {
-              startHour: new Date(
-                `${existingEvent.date.toISOString().split('T')[0]}T${eventData.startHour}:00.000Z`,
-              ),
-            }),
-          ...(eventData.endHour &&
-            !eventData.date && {
-              endHour: new Date(
-                `${existingEvent.date.toISOString().split('T')[0]}T${eventData.endHour}:00.000Z`,
-              ),
-            }),
-          ...(facilityIds !== undefined && {
-            facilities: {
-              deleteMany: {},
-              create: facilityIds.map((facilityId) => ({
-                facility: { connect: { id: facilityId } },
-              })),
-            },
+          ...(eventData.startHour && {
+            startHour: new Date(eventData.startHour),
           }),
-          ...(includedOptions !== undefined && {
-            includedOptions: {
-              deleteMany: {},
-              create: includedOptions.map((name) => ({ name })),
-            },
+          ...(eventData.endHour && {
+            endHour: new Date(eventData.endHour),
           }),
-          ...(requirements !== undefined && {
-            requirements: {
-              deleteMany: {},
-              create: requirements.map((name) => ({ name })),
-            },
-          }),
-        },
-        include: {
-          location: {
-            select: { id: true, name: true, address: true },
-          },
-          facilities: {
-            include: { facility: true },
-          },
-          includedOptions: true,
-          requirements: true,
-          _count: {
-            select: { reservations: true },
-          },
-        },
+        };
+
+        if (Object.keys(scalarUpdate).length > 0) {
+          await manager.update(Event, id, scalarUpdate);
+        }
+
+        if (facilityIds !== undefined) {
+          await manager.delete(EventFacilities, { eventId: id });
+
+          if (facilityIds.length > 0) {
+            await manager.insert(
+              EventFacilities,
+              facilityIds.map((facilityId) => ({
+                eventId: id,
+                facilityId,
+              }))
+            );
+          }
+        }
+
+        if (includedOptions !== undefined) {
+          await manager.delete(EventIncludedOptions, { eventId: id });
+
+          if (includedOptions.length > 0) {
+            await manager.insert(
+              EventIncludedOptions,
+              includedOptions.map((name) => ({
+                eventId: id,
+                name,
+              }))
+            );
+          }
+        }
+
+        if (requirements !== undefined) {
+          await manager.delete(EventRequirements, { eventId: id });
+
+          if (requirements.length > 0) {
+            await manager.insert(
+              EventRequirements,
+              requirements.map((name) => ({
+                eventId: id,
+                name,
+              }))
+            );
+          }
+        }
       });
-    } catch (error: any) {
-      if (error.code === 'P2002') {
-        throw new BadRequestException(
-          'Event with this name already exists at this location',
-        );
+
+      return this.findOne(id);
+    } catch (error) {
+      if (error instanceof QueryFailedError) {
+        const driverError = error.driverError as {
+          code?: string;
+          errno?: number;
+        };
+
+        if (driverError.code === "ER_DUP_ENTRY" || driverError.errno === 1062) {
+          throw new BadRequestException(
+            "Event with this name already exists at this location"
+          );
+        }
       }
+
       throw error;
     }
   }
 
   async remove(id: number) {
-    const existingEvent = await this.prisma.event.findUnique({
+    const existingEvent = await this.eventRepo.findOne({
       where: { id },
-      include: {
-        _count: {
-          select: { reservations: true },
-        },
-      },
     });
 
     if (!existingEvent) {
       throw new NotFoundException(`Event with ID ${id} not found`);
     }
 
-    if (existingEvent._count.reservations > 0) {
+    if (existingEvent.reservationsCount > 0) {
       throw new BadRequestException(
-        'Cannot delete event with existing reservations',
+        "Cannot delete event with existing reservations"
       );
     }
 
-    await this.prisma.event.delete({
-      where: { id },
-    });
+    await this.eventRepo.delete(id);
 
-    return { message: 'Event deleted successfully' };
+    return { message: "Event deleted successfully" };
   }
 
   async findByLocation(locationId: number) {
-    return await this.prisma.event.findMany({
+    return this.eventRepo.find({
       where: { locationId },
-      include: {
+      relations: {
+        location: true,
+        eventFacilities: {
+          facility: true,
+        },
+        eventIncludedOptions: true,
+        eventRequirements: true,
+      },
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        date: true,
+        startHour: true,
+        endHour: true,
+        address: true,
+        price: true,
+        maxPeople: true,
+        imageUrl: true,
+        locationId: true,
+        createdAt: true,
+        updatedAt: true,
+        reservationsCount: true,
         location: {
-          select: { id: true, name: true, address: true },
-        },
-        facilities: {
-          include: { facility: true },
-        },
-        includedOptions: true,
-        requirements: true,
-        _count: {
-          select: { reservations: true },
+          id: true,
+          name: true,
+          address: true,
         },
       },
-      orderBy: { date: 'asc' },
+      order: {
+        date: "ASC",
+      },
     });
   }
 
   async toggleEventFacilityStatus(eventId: number, facilityId: number) {
-    // Check if the event-facility relation exists
-    const eventFacility = await this.prisma.eventFacility.findUnique({
+    const eventFacility = await this.eventFacilitiesRepo.findOne({
       where: {
-        eventId_facilityId: {
-          eventId,
-          facilityId,
-        },
+        eventId,
+        facilityId,
       },
-      include: {
+      relations: {
+        facility: true,
+        event: true,
+      },
+      select: {
+        eventId: true,
+        facilityId: true,
+        isActive: true,
         facility: true,
         event: {
-          select: { id: true, name: true },
+          id: true,
+          name: true,
         },
       },
     });
 
     if (!eventFacility) {
       throw new NotFoundException(
-        `EventFacility relation not found for event ${eventId} and facility ${facilityId}`,
+        `EventFacility relation not found for event ${eventId} and facility ${facilityId}`
       );
     }
 
-    return this.prisma.eventFacility.update({
-      where: {
-        eventId_facilityId: {
-          eventId,
-          facilityId,
-        },
-      },
-      data: { isActive: !eventFacility.isActive },
-      include: {
-        facility: true,
-        event: {
-          select: { id: true, name: true },
-        },
-      },
-    });
+    eventFacility.isActive = !eventFacility.isActive;
+
+    await this.eventFacilitiesRepo.save(eventFacility);
+
+    return eventFacility;
   }
 }

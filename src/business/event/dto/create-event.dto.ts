@@ -6,9 +6,9 @@ import {
   IsInt,
   Min,
   Matches,
+  IsDateString,
 } from "class-validator";
 import { Transform, Type } from "class-transformer";
-import { Decimal } from "@prisma/client/runtime/library";
 
 export class CreateEventDto {
   @IsString()
@@ -18,60 +18,30 @@ export class CreateEventDto {
   @IsString()
   description?: string;
 
-  @Matches(/^\d{4}-\d{2}-\d{2}$/, {
-    message: "Date must be in YYYY-MM-DD format",
-  })
-  @Transform(({ value }) => {
-    // Ensure we only get the date part if a full datetime is sent
-    if (typeof value === "string") {
-      return value.split("T")[0];
-    }
-    return value as string;
-  })
+  @IsDateString({}, { message: "Date must be a valid ISO datetime" })
   date: string;
 
-  @Matches(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, {
-    message: "Start hour must be in H:M or HH:MM format (24-hour format)",
-  })
-  @Transform(({ value }) => {
-    // Ensure we only get the time part if a full datetime is sent
-    if (typeof value === "string") {
-      // If it contains 'T', it's a datetime string, extract time
-      if (value.includes("T")) {
-        return value.split("T")[1].substring(0, 5);
-      }
-      return value;
-    }
-    return value as string;
-  })
+  @IsDateString({}, { message: "Start hour must be a valid ISO datetime" })
   startHour: string;
 
-  @Matches(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, {
-    message: "End hour must be in H:M or HH:MM format (24-hour format)",
-  })
-  @Transform(({ value }) => {
-    // Ensure we only get the time part if a full datetime is sent
-    if (typeof value === "string") {
-      // If it contains 'T', it's a datetime string, extract time
-      if (value.includes("T")) {
-        return value.split("T")[1].substring(0, 5);
-      }
-      return value;
-    }
-    return value as string;
-  })
+  @IsDateString({}, { message: "End hour must be a valid ISO datetime" })
   endHour: string;
 
   @IsString()
   address: string;
 
   @IsOptional()
-  @Transform(({ value }) =>
-    value == null || value === ""
-      ? undefined
-      : new Decimal(value as Decimal.Value)
-  )
-  price?: Decimal;
+  @Transform(({ value }) => {
+    if (value === null || value === undefined || value === "") {
+      return undefined;
+    }
+
+    return String(value);
+  })
+  @Matches(/^\d+(\.\d{1,2})?$/, {
+    message: "Price must be a valid decimal with up to 2 decimals",
+  })
+  price?: string;
 
   @IsOptional()
   @Type(() => Number)
@@ -91,6 +61,8 @@ export class CreateEventDto {
   @IsOptional()
   @IsArray()
   @Type(() => Number)
+  @IsInt({ each: true })
+  @IsPositive({ each: true })
   facilityIds?: number[];
 
   @IsOptional()
