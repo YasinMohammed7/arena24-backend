@@ -11,6 +11,7 @@ import {
 import { Permission } from "./permission";
 import { UserBusinessRoles } from "./userBusinessRoles";
 import { UserRoles } from "./userRoles";
+import { RolePermission } from "./rolePermissions";
 
 @Index("Role_name_key", ["name"], { unique: true })
 @Entity("Role")
@@ -32,6 +33,12 @@ export class Role {
 
   @OneToMany(() => UserRoles, (userRoles) => userRoles.role)
   userRoles: UserRoles[];
+
+  @OneToMany(
+    () => RolePermission,
+    (rolePermission) => rolePermission.permission
+  )
+  rolePermissions: RolePermission[];
 
   @CreateDateColumn({ name: "createdAt" })
   createdAt: Date;

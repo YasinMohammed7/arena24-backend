@@ -9,6 +9,7 @@ import {
 } from "typeorm";
 import { Role } from "./role";
 import { UserPermissions } from "./userPermissions";
+import { RolePermission } from "./rolePermissions";
 
 @Index("Permission_name_key", ["name"], { unique: true })
 @Entity("Permission")
@@ -32,4 +33,10 @@ export class Permission {
     (userPermissions) => userPermissions.permission
   )
   userPermissions: UserPermissions[];
+
+  @OneToMany(
+    () => RolePermission,
+    (rolePermission) => rolePermission.permission
+  )
+  rolePermissions: RolePermission[];
 }

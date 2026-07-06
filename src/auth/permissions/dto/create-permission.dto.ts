@@ -1,4 +1,10 @@
-import { IsString, IsNotEmpty, Length, IsOptional } from "class-validator";
+import {
+  IsString,
+  IsNotEmpty,
+  Length,
+  IsOptional,
+  IsUUID,
+} from "class-validator";
 
 export class CreatePermissionDto {
   @IsString()
@@ -8,25 +14,25 @@ export class CreatePermissionDto {
 }
 
 export class AssignPermissionDto {
-  @IsString()
+  @IsUUID()
   @IsNotEmpty()
   roleId: string;
 
-  @IsString()
+  @IsUUID()
   @IsNotEmpty()
   permissionId: string;
 }
 
 export class AssignUserPermissionDto {
-  @IsString()
+  @IsUUID()
   @IsNotEmpty()
   userId: string;
 
-  @IsString()
+  @IsUUID()
   @IsNotEmpty()
   permissionId: string;
 
-  @IsString()
+  @IsUUID()
   @IsOptional()
   assignedBy?: string;
 }
