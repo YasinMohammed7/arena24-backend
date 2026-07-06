@@ -1,250 +1,144 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
-import { PrismaService } from "@/prisma/prisma.service";
-import { Prisma, OfferCategory } from "@prisma/client";
-import { ParsedQueryOfferDto } from "./dto/query-offer.dto";
-import { OfferResponseDto } from "./dto/offer-response.dto";
+import { QueryOfferDto } from "./dto/query-offer.dto";
 import { QueryOfferCategoryDto } from "@/business/offer-category/dto/query-offer-category.dto";
-import { OfferCategoryResponseDto } from "@/business/offer-category/dto/offer-category-response.dto";
-
-// Type for offer with included relations
-type OfferWithRelations = Prisma.OfferGetPayload<{
-  include: {
-    location: {
-      select: {
-        id: true;
-        name: true;
-        type: true;
-        address: true;
-      };
-    };
-    category: {
-      select: {
-        id: true;
-        name: true;
-      };
-    };
-  };
-}>;
+import { InjectRepository } from "@nestjs/typeorm";
+import { Locations } from "@/database/entities/locations";
+import { Brackets, IsNull, MoreThanOrEqual, Repository } from "typeorm";
+import { Offers } from "@/database/entities/offers";
+import { Media } from "@/database/entities/media";
+import { OfferCategories } from "@/database/entities/offerCategories";
+import { Event } from "@/database/entities/event";
+import { PaginatedResult, paginate } from "@/common/dto/paginated-result";
 
 @Injectable()
 export class ClientService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    @InjectRepository(Locations)
+    private readonly locationRepo: Repository<Locations>,
+
+    @InjectRepository(Event)
+    private readonly eventRepo: Repository<Event>,
+
+    @InjectRepository(Offers)
+    private readonly offerRepo: Repository<Offers>,
+
+    @InjectRepository(Media)
+    private readonly mediaRepo: Repository<Media>,
+
+    @InjectRepository(OfferCategories)
+    private readonly offerCategoryRepo: Repository<OfferCategories>
+  ) {}
 
   async findAllActiveLocations() {
-    return this.prisma.location.findMany({
-      where: {
-        isActive: true,
-        deletedAt: null,
-      },
-      include: {
-        business: {
-          select: {
-            id: true,
-            name: true,
-            description: true,
-          },
-        },
-        schedule: true,
-        LocationFacility: {
-          where: {
-            isActive: true,
-          },
-          include: {
-            facility: {
-              select: {
-                id: true,
-                name: true,
-                isActive: true,
-              },
-            },
-          },
-        },
-        LocationAmenity: {
-          where: {
-            isActive: true,
-          },
-          include: {
-            amenity: {
-              select: {
-                id: true,
-                name: true,
-                description: true,
-                iconUrl: true,
-                isActive: true,
-              },
-            },
-          },
-        },
-        events: {
-          where: {
-            date: {
-              gte: new Date(), // Only show future events
-            },
-          },
-          select: {
-            id: true,
-            name: true,
-            description: true,
-            date: true,
-            startHour: true,
-            endHour: true,
-            price: true,
-            imageUrl: true,
-          },
-        },
-        Offer: {
-          where: {
-            startDate: {
-              lte: new Date(),
-            },
-            endDate: {
-              gte: new Date(),
-            },
-          },
-          select: {
-            id: true,
-            name: true,
-            description: true,
-            discount: true,
-            image: true,
-            startDate: true,
-            endDate: true,
-          },
-        },
-        Review: {
-          select: {
-            id: true,
-            stars: true,
-            comment: true,
-            createdAt: true,
-            user: {
-              select: {
-                id: true,
-                name: true,
-              },
-            },
-          },
-          orderBy: {
-            createdAt: "desc",
-          },
-        },
-      },
-      orderBy: { createdAt: "desc" },
-    });
+    const now = new Date();
+
+    return this.locationRepo
+      .createQueryBuilder("location")
+      .leftJoin("location.business", "business")
+      .addSelect(["business.id", "business.name", "business.description"])
+      .leftJoinAndSelect("location.schedules", "schedule")
+      .leftJoinAndSelect(
+        "location.locationFacilities",
+        "locationFacility",
+        "locationFacility.isActive = :isActive",
+        { isActive: true }
+      )
+      .leftJoin("locationFacility.facility", "facility")
+      .addSelect(["facility.id", "facility.name", "facility.isActive"])
+      .leftJoinAndSelect(
+        "location.locationAmenities",
+        "locationAmenity",
+        "locationAmenity.isActive = :isActive",
+        { isActive: true }
+      )
+      .leftJoin("locationAmenity.amenity", "amenity")
+      .addSelect([
+        "amenity.id",
+        "amenity.name",
+        "amenity.description",
+        "amenity.iconUrl",
+        "amenity.isActive",
+      ])
+      .leftJoinAndSelect("location.events", "event", "event.date >= :now", {
+        now,
+      })
+      .leftJoinAndSelect(
+        "location.offers",
+        "offer",
+        "offer.startDate <= :now AND offer.endDate >= :now",
+        { now }
+      )
+      .leftJoinAndSelect("location.reviews", "review")
+      .leftJoin("review.user", "reviewUser")
+      .addSelect(["reviewUser.id", "reviewUser.name"])
+      .where("location.isActive = :isActive", { isActive: true })
+      .andWhere("location.deletedAt IS NULL")
+      .orderBy("location.createdAt", "DESC")
+      .addOrderBy("review.createdAt", "DESC")
+      .getMany();
   }
 
   async findActiveLocationById(id: number) {
-    const location = await this.prisma.location.findFirst({
-      where: {
-        id,
-        isActive: true,
-        deletedAt: null,
-      },
-      include: {
-        business: {
-          select: {
-            id: true,
-            name: true,
-            description: true,
-          },
-        },
-        schedule: true,
-        LocationFacility: {
-          where: {
-            isActive: true,
-          },
-          include: {
-            facility: {
-              select: {
-                id: true,
-                name: true,
-                isActive: true,
-              },
-            },
-          },
-        },
-        LocationAmenity: {
-          where: {
-            isActive: true,
-          },
-          include: {
-            amenity: {
-              select: {
-                id: true,
-                name: true,
-                description: true,
-                iconUrl: true,
-                isActive: true,
-              },
-            },
-          },
-        },
-        events: {
-          where: {
-            date: {
-              gte: new Date(), // Only show future events
-            },
-          },
-          select: {
-            id: true,
-            name: true,
-            description: true,
-            date: true,
-            startHour: true,
-            endHour: true,
-            price: true,
-            imageUrl: true,
-          },
-          orderBy: {
-            date: "asc",
-          },
-        },
-        Offer: {
-          where: {
-            startDate: {
-              lte: new Date(),
-            },
-            endDate: {
-              gte: new Date(),
-            },
-          },
-          select: {
-            id: true,
-            name: true,
-            description: true,
-            discount: true,
-            image: true,
-            startDate: true,
-            endDate: true,
-          },
-        },
-        Review: {
-          select: {
-            id: true,
-            stars: true,
-            comment: true,
-            createdAt: true,
-            user: {
-              select: {
-                id: true,
-                name: true,
-              },
-            },
-          },
-          orderBy: {
-            createdAt: "desc",
-          },
-        },
-      },
-    });
+    const now = new Date();
+
+    const location = await this.locationRepo
+      .createQueryBuilder("location")
+      .leftJoin("location.business", "business")
+      .addSelect(["business.id", "business.name", "business.description"])
+      .leftJoinAndSelect("location.schedules", "schedule")
+      .leftJoinAndSelect(
+        "location.locationFacilities",
+        "locationFacility",
+        "locationFacility.isActive = :isActive",
+        { isActive: true }
+      )
+      .leftJoin("locationFacility.facility", "facility")
+      .addSelect(["facility.id", "facility.name", "facility.isActive"])
+      .leftJoinAndSelect(
+        "location.locationAmenities",
+        "locationAmenity",
+        "locationAmenity.isActive = :isActive",
+        { isActive: true }
+      )
+      .leftJoin("locationAmenity.amenity", "amenity")
+      .addSelect([
+        "amenity.id",
+        "amenity.name",
+        "amenity.description",
+        "amenity.iconUrl",
+        "amenity.isActive",
+      ])
+      .leftJoinAndSelect("location.events", "event", "event.date >= :now", {
+        now,
+      })
+      .leftJoinAndSelect(
+        "location.offers",
+        "offer",
+        "offer.startDate <= :now AND offer.endDate >= :now",
+        { now }
+      )
+      .leftJoinAndSelect("location.reviews", "review")
+      .leftJoin("review.user", "reviewUser")
+      .addSelect(["reviewUser.id", "reviewUser.name"])
+      .where("location.id = :id", { id })
+      .andWhere("location.isActive = :isActive", { isActive: true })
+      .andWhere("location.deletedAt IS NULL")
+      .orderBy("event.date", "ASC")
+      .addOrderBy("review.createdAt", "DESC")
+      .getOne();
 
     if (!location) {
       throw new NotFoundException("Location not found or not active");
     }
 
-    const media = await this.prisma.media.findMany({
-      where: { modelType: "Location", modelId: id.toString() },
-      orderBy: { createdAt: "asc" },
+    const media = await this.mediaRepo.find({
+      where: {
+        modelType: "Location",
+        modelId: id.toString(),
+      },
+      order: {
+        createdAt: "ASC",
+      },
     });
 
     return {
@@ -254,95 +148,117 @@ export class ClientService {
   }
 
   async findAllActiveEvents() {
-    return this.prisma.event.findMany({
+    const now = new Date();
+
+    return this.eventRepo.find({
       where: {
-        date: {
-          gte: new Date(), // Only show future events
-        },
+        date: MoreThanOrEqual(now),
         location: {
           isActive: true,
-          deletedAt: null,
+          deletedAt: IsNull(),
         },
       },
-      include: {
+      relations: {
         location: {
-          select: {
+          business: true,
+        },
+        eventFacilities: {
+          facility: true,
+        },
+        eventIncludedOptions: true,
+        eventRequirements: true,
+      },
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        date: true,
+        startHour: true,
+        endHour: true,
+        price: true,
+        imageUrl: true,
+        location: {
+          id: true,
+          name: true,
+          address: true,
+          business: {
             id: true,
             name: true,
-            address: true,
-            business: {
-              select: {
-                id: true,
-                name: true,
-                description: true,
-              },
-            },
+            description: true,
           },
         },
-        facilities: {
-          include: {
-            facility: {
-              select: {
-                id: true,
-                name: true,
-                isActive: true,
-              },
-            },
+        eventFacilities: {
+          eventId: true,
+          facilityId: true,
+          isActive: true,
+          facility: {
+            id: true,
+            name: true,
+            isActive: true,
           },
         },
-        includedOptions: true,
-        requirements: true,
-        _count: {
-          select: { reservations: true },
-        },
+        eventIncludedOptions: true,
+        eventRequirements: true,
       },
-      orderBy: { date: "asc" },
+      order: {
+        date: "ASC",
+      },
     });
   }
 
   async findActiveEventById(id: number) {
-    const event = await this.prisma.event.findFirst({
+    const now = new Date();
+
+    const event = await this.eventRepo.findOne({
       where: {
         id,
-        date: {
-          gte: new Date(), // Only show future events
-        },
+        date: MoreThanOrEqual(now),
         location: {
           isActive: true,
-          deletedAt: null,
+          deletedAt: IsNull(),
         },
       },
-      include: {
+      relations: {
         location: {
-          select: {
+          business: true,
+        },
+        eventFacilities: {
+          facility: true,
+        },
+        eventIncludedOptions: true,
+        eventRequirements: true,
+      },
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        date: true,
+        startHour: true,
+        endHour: true,
+        price: true,
+        imageUrl: true,
+        location: {
+          id: true,
+          name: true,
+          address: true,
+          business: {
             id: true,
             name: true,
-            address: true,
-            business: {
-              select: {
-                id: true,
-                name: true,
-                description: true,
-              },
-            },
+            description: true,
           },
         },
-        facilities: {
-          include: {
-            facility: {
-              select: {
-                id: true,
-                name: true,
-                isActive: true,
-              },
-            },
+        eventFacilities: {
+          eventId: true,
+          facilityId: true,
+          isActive: true,
+          facility: {
+            id: true,
+            name: true,
+            isActive: true,
           },
         },
-        includedOptions: true,
-        requirements: true,
-        _count: {
-          select: { reservations: true },
-        },
+        eventIncludedOptions: true,
+        eventRequirements: true,
       },
     });
 
@@ -363,13 +279,9 @@ export class ClientService {
    * ?name=pizza - Search offers containing "pizza"
    * ?startDate=2025-08-01&endDate=2025-12-31 - Date range filtering
    */
-  async findAllOffers(queryDto: ParsedQueryOfferDto = {}): Promise<{
-    data: OfferResponseDto[];
-    total: number;
-    page: number;
-    limit: number;
-    totalPages: number;
-  }> {
+  async findAllOffers(
+    queryDto: QueryOfferDto = {}
+  ): Promise<PaginatedResult<Offers>> {
     const {
       locationId,
       categoryId,
@@ -386,125 +298,98 @@ export class ClientService {
     const skip = (page - 1) * limit;
     const now = new Date();
 
-    const where: Prisma.OfferWhereInput = {};
+    const query = this.offerRepo
+      .createQueryBuilder("offer")
+      .leftJoin("offer.location", "location")
+      .addSelect([
+        "location.id",
+        "location.name",
+        "location.type",
+        "location.address",
+      ])
+      .leftJoin("offer.category", "category")
+      .addSelect(["category.id", "category.name"]);
 
-    // Filter by location
     if (globalOnly) {
-      where.locationId = null;
+      query.andWhere("offer.locationId IS NULL");
     } else if (locationId) {
-      where.locationId = locationId;
+      query.andWhere("offer.locationId = :locationId", { locationId });
     }
 
-    // Filter by category
-    if (categoryId) where.categoryId = categoryId;
+    if (categoryId) {
+      query.andWhere("offer.categoryId = :categoryId", { categoryId });
+    }
 
-    // Filter by name (partial match)
     if (name) {
-      where.name = {
-        contains: name,
-      };
+      query.andWhere("offer.name LIKE :name", { name: `%${name}%` });
     }
 
-    // Filter by date range
-    if (startDate || endDate || activeOnly) {
-      where.AND = [];
-
-      if (startDate) {
-        where.AND.push({
-          startDate: {
-            gte: new Date(startDate),
-          },
-        });
-      }
-
-      if (endDate) {
-        where.AND.push({
-          endDate: {
-            lte: new Date(endDate),
-          },
-        });
-      }
-
-      // Show only active offers
-      if (activeOnly) {
-        where.AND.push({
-          startDate: {
-            lte: now,
-          },
-          endDate: {
-            gte: now,
-          },
-        });
-      }
+    if (startDate) {
+      query.andWhere("offer.startDate >= :startDate", {
+        startDate: new Date(startDate),
+      });
     }
 
-    // Filter by minimum discount
+    if (endDate) {
+      query.andWhere("offer.endDate <= :endDate", {
+        endDate: new Date(endDate),
+      });
+    }
+
+    if (activeOnly) {
+      query.andWhere(
+        new Brackets((qb) => {
+          qb.where("offer.startDate <= :now", { now }).andWhere(
+            "offer.endDate >= :now",
+            { now }
+          );
+        })
+      );
+    }
+
     if (minDiscount !== undefined) {
-      where.discount = {
-        gte: minDiscount,
-      };
+      query.andWhere("offer.discount >= :minDiscount", { minDiscount });
     }
 
-    const [offers, total] = await Promise.all([
-      this.prisma.offer.findMany({
-        where,
-        skip,
-        take: limit,
-        orderBy: [{ endDate: "asc" }, { createdAt: "desc" }],
-        include: {
-          location: {
-            select: {
-              id: true,
-              name: true,
-              type: true,
-              address: true,
-            },
-          },
-          category: {
-            select: {
-              id: true,
-              name: true,
-            },
-          },
-        },
-      }),
-      this.prisma.offer.count({ where }),
-    ]);
+    const [offers, total] = await query
+      .orderBy("offer.endDate", "ASC")
+      .addOrderBy("offer.createdAt", "DESC")
+      .skip(skip)
+      .take(limit)
+      .getManyAndCount();
 
-    const totalPages = Math.ceil(total / limit);
-    const mappedOffers = offers.map((offer) =>
-      this.mapOfferToResponseDto(offer)
-    );
-
-    return {
-      data: mappedOffers,
-      total,
-      page,
-      limit,
-      totalPages,
-    };
+    return paginate(offers, total, page, limit);
   }
 
   /**
    * Find a single offer by ID
    */
-  async findOneOffer(id: number): Promise<OfferResponseDto> {
-    const offer = await this.prisma.offer.findUnique({
+  async findOneOffer(id: number): Promise<Offers> {
+    const offer = await this.offerRepo.findOne({
       where: { id },
-      include: {
+      relations: {
+        location: true,
+        category: true,
+      },
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        discount: true,
+        image: true,
+        startDate: true,
+        endDate: true,
+        createdAt: true,
+        updatedAt: true,
         location: {
-          select: {
-            id: true,
-            name: true,
-            type: true,
-            address: true,
-          },
+          id: true,
+          name: true,
+          type: true,
+          address: true,
         },
         category: {
-          select: {
-            id: true,
-            name: true,
-          },
+          id: true,
+          name: true,
         },
       },
     });
@@ -513,118 +398,39 @@ export class ClientService {
       throw new NotFoundException(`Offer with ID ${id} not found`);
     }
 
-    return this.mapOfferToResponseDto(offer);
+    return offer;
   }
 
-  async findAllOfferCategories(queryDto: QueryOfferCategoryDto = {}): Promise<{
-    data: OfferCategoryResponseDto[];
-    total: number;
-    page: number;
-    limit: number;
-    totalPages: number;
-  }> {
+  async findAllOfferCategories(
+    queryDto: QueryOfferCategoryDto = {}
+  ): Promise<PaginatedResult<OfferCategories>> {
     const { name, page = 1, limit = 10 } = queryDto;
     const skip = (page - 1) * limit;
 
-    const where: Prisma.OfferCategoryWhereInput = {};
+    const query = this.offerCategoryRepo.createQueryBuilder("category");
 
-    // Filter by name (partial match)
     if (name) {
-      where.name = {
-        contains: name,
-      };
+      query.andWhere("category.name LIKE :name", { name: `%${name}%` });
     }
 
-    const [categories, total] = await Promise.all([
-      this.prisma.offerCategory.findMany({
-        where,
-        skip,
-        take: limit,
-        orderBy: { name: "asc" },
-        include: {
-          _count: {
-            select: {
-              offers: {
-                where: {
-                  startDate: { lte: new Date() },
-                  endDate: { gte: new Date() },
-                },
-              },
-            },
-          },
-        },
-      }),
-      this.prisma.offerCategory.count({ where }),
-    ]);
+    const [categories, total] = await query
+      .orderBy("category.name", "ASC")
+      .skip(skip)
+      .take(limit)
+      .getManyAndCount();
 
-    const totalPages = Math.ceil(total / limit);
-    const mappedCategories = categories.map((category) =>
-      this.mapToResponseDto(category, category._count.offers)
-    );
-
-    return {
-      data: mappedCategories,
-      total,
-      page,
-      limit,
-      totalPages,
-    };
+    return paginate(categories, total, page, limit);
   }
 
-  async findOne(id: number): Promise<OfferCategoryResponseDto> {
-    const category = await this.prisma.offerCategory.findUnique({
+  async findOne(id: number): Promise<OfferCategories> {
+    const category = await this.offerCategoryRepo.findOne({
       where: { id },
-      include: {
-        _count: {
-          select: {
-            offers: {
-              where: {
-                startDate: { lte: new Date() },
-                endDate: { gte: new Date() },
-              },
-            },
-          },
-        },
-      },
     });
 
     if (!category) {
       throw new NotFoundException(`Offer category with ID ${id} not found`);
     }
 
-    return this.mapToResponseDto(category, category._count.offers);
-  }
-
-  private mapToResponseDto(
-    category: OfferCategory,
-    offerCount: number
-  ): OfferCategoryResponseDto {
-    return {
-      id: category.id,
-      name: category.name,
-      offerCount,
-      createdAt: category.createdAt,
-      updatedAt: category.updatedAt,
-    };
-  }
-
-  private mapOfferToResponseDto(offer: OfferWithRelations): OfferResponseDto {
-    const now = new Date();
-    const isActive = offer.startDate <= now && offer.endDate >= now;
-
-    return {
-      id: offer.id,
-      name: offer.name,
-      description: offer.description,
-      image: offer.image,
-      startDate: offer.startDate,
-      endDate: offer.endDate,
-      discount: offer.discount,
-      location: offer.location,
-      category: offer.category,
-      isActive,
-      createdAt: offer.createdAt,
-      updatedAt: offer.updatedAt,
-    };
+    return category;
   }
 }
