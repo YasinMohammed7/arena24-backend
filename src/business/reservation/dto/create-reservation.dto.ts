@@ -7,7 +7,7 @@ import {
   IsNotEmpty,
   IsString,
 } from "class-validator";
-import { ReservationStatus } from "@prisma/client";
+import { ReservationStatus } from "@/common/enums/reservation-status.enum";
 
 export class CreateReservationDto {
   @IsInt()

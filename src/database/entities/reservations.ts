@@ -11,6 +11,7 @@ import {
 import { Event } from "./event";
 import { Locations } from "./locations";
 import { User } from "./user";
+import { ReservationStatus } from "@/common/enums/reservation-status.enum";
 
 @Index("reservations_userId_idx", ["userId"], {})
 @Index("reservations_eventId_idx", ["eventId"], {})
@@ -37,10 +38,10 @@ export class Reservations {
 
   @Column("enum", {
     name: "status",
-    enum: ["PENDING", "CONFIRMED", "CANCELLED"],
-    default: () => "PENDING",
+    enum: ReservationStatus,
+    default: ReservationStatus.PENDING,
   })
-  status: "PENDING" | "CONFIRMED" | "CANCELLED";
+  status: ReservationStatus;
 
   @Column("varchar", { name: "details", nullable: true, length: 191 })
   details: string | null;
