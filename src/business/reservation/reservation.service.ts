@@ -5,11 +5,11 @@ import {
 } from "@nestjs/common";
 import { CreateReservationDto } from "./dto/create-reservation.dto";
 import { UpdateReservationDto } from "./dto/update-reservation.dto";
-import { ReservationStatus } from "@prisma/client";
 import { Locations } from "@/database/entities/locations";
 import { Repository } from "typeorm";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Reservations } from "@/database/entities/reservations";
+import { ReservationStatus } from "@/common/enums/reservation-status.enum";
 import { Event } from "@/database/entities/event";
 import { User } from "@/database/entities/user";
 
