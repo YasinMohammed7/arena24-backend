@@ -3,49 +3,37 @@ import {
   NotFoundException,
   BadRequestException,
 } from "@nestjs/common";
-import { PrismaService } from "@/prisma/prisma.service";
 import { UpdateUserDto } from "./dto/update-user.dto";
 import * as bcrypt from "bcryptjs";
 import { applyOwnershipFilter } from "@/common/ownership.util";
 import { promises as fs } from "fs";
 import * as path from "path";
-import { Prisma } from "@prisma/client";
-import { Request } from "express";
-import { AuthUser } from "@/auth/decorators/current-user.decorator";
-
-/**
- * Request shape consumed by `findAll`: the JWT strategy attaches `user` and the
- * AuthorizationGuard attaches `authScope` (used for service-level filtering).
- * Mirrors the controller's `RequestWithAuthScope`.
- */
-type RequestWithAuthScope = Request & {
-  user: AuthUser;
-  authScope?: {
-    roles: string[];
-    permissions?: string[];
-    grantedPermission: string | null;
-  };
-};
+import { AuthUser } from "@/auth/interfaces/auth-user.interface";
+import { RequestWithAuthScope } from "@/auth/interfaces/authenticated-request.interface";
+import { InjectRepository } from "@nestjs/typeorm";
+import { User } from "@/database/entities/user";
+import { IsNull, QueryFailedError, Repository } from "typeorm";
 
 @Injectable()
 export class UsersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    @InjectRepository(User) private readonly userRepo: Repository<User>
+  ) {}
 
   async findAll(req: RequestWithAuthScope) {
-    // console.log('=== SERVICE DEBUG ===');
-    // console.log('req.authScope:', req.authScope);
-    // console.log('req.authScope?.grantedPermission:', req.authScope?.grantedPermission);
-    // console.log('req.user:', req.user);
-    // console.log('====================');
-
     const user = req.user;
 
     // Get the actual permission granted by the authorization guard from the route decorator
     const scope = req.authScope?.grantedPermission || "read:own";
 
-    const where = applyOwnershipFilter({}, user, scope, "ownerId");
+    const where = applyOwnershipFilter<User, "ownerId">(
+      {},
+      user,
+      scope,
+      "ownerId"
+    );
 
-    return this.prisma.user.findMany({
+    return this.userRepo.find({
       where,
       select: {
         id: true,
@@ -67,18 +55,27 @@ export class UsersService {
     scope: "own" | "any",
     includeDeleted = false
   ) {
-    const where: Prisma.UserWhereInput = { id };
+    const notDeletedWhere = includeDeleted ? {} : { deletedAt: IsNull() };
 
-    if (scope === "own") {
-      // Users can only see their own data or users they own
-      where.OR = [{ id: user.id }, { ownerId: user.id }];
-    }
+    const where =
+      scope === "own"
+        ? [
+            {
+              id: user.id,
+              ...notDeletedWhere,
+            },
+            {
+              id,
+              ownerId: user.id,
+              ...notDeletedWhere,
+            },
+          ]
+        : {
+            id,
+            ...notDeletedWhere,
+          };
 
-    if (!includeDeleted) {
-      where.deletedAt = null;
-    }
-
-    const foundUser = await this.prisma.user.findFirst({
+    const foundUser = await this.userRepo.findOne({
       where,
       select: {
         id: true,
@@ -107,9 +104,10 @@ export class UsersService {
       throw new BadRequestException("User is already active");
     }
 
-    return this.prisma.user.update({
+    await this.userRepo.update(id, { isActive: true });
+
+    const updatedUser = await this.userRepo.findOne({
       where: { id },
-      data: { isActive: true },
       select: {
         id: true,
         email: true,
@@ -119,6 +117,12 @@ export class UsersService {
         updatedAt: true,
       },
     });
+
+    if (!updatedUser) {
+      throw new NotFoundException("User not found");
+    }
+
+    return updatedUser;
   }
 
   async deactivateUser(id: string, user: AuthUser, scope: "own" | "any") {
@@ -128,9 +132,10 @@ export class UsersService {
       throw new BadRequestException("User is already inactive");
     }
 
-    return this.prisma.user.update({
+    await this.userRepo.update(id, { isActive: false });
+
+    const updatedUser = await this.userRepo.findOne({
       where: { id },
-      data: { isActive: false },
       select: {
         id: true,
         email: true,
@@ -140,6 +145,12 @@ export class UsersService {
         updatedAt: true,
       },
     });
+
+    if (!updatedUser) {
+      throw new NotFoundException("User not found");
+    }
+
+    return updatedUser;
   }
 
   async softDeleteUser(id: string, user: AuthUser, scope: "own" | "any") {
@@ -149,9 +160,10 @@ export class UsersService {
       throw new BadRequestException("User is already deleted");
     }
 
-    return this.prisma.user.update({
+    await this.userRepo.update(id, { deletedAt: new Date() });
+
+    const updatedUser = await this.userRepo.findOne({
       where: { id },
-      data: { deletedAt: new Date() },
       select: {
         id: true,
         email: true,
@@ -161,6 +173,12 @@ export class UsersService {
         updatedAt: true,
       },
     });
+
+    if (!updatedUser) {
+      throw new NotFoundException("User not found");
+    }
+
+    return updatedUser;
   }
 
   async restoreUser(id: string, user: AuthUser, scope: "own" | "any") {
@@ -170,9 +188,10 @@ export class UsersService {
       throw new BadRequestException("User is not deleted");
     }
 
-    return this.prisma.user.update({
+    await this.userRepo.update(id, { deletedAt: null });
+
+    const updatedUser = await this.userRepo.findOne({
       where: { id },
-      data: { deletedAt: null },
       select: {
         id: true,
         email: true,
@@ -182,28 +201,39 @@ export class UsersService {
         updatedAt: true,
       },
     });
+
+    if (!updatedUser) {
+      throw new NotFoundException("User not found");
+    }
+
+    return updatedUser;
   }
 
   async update(userId: string, updateUserDto: UpdateUserDto) {
-    // Check if user exists
-    const existingUser = await this.prisma.user.findUnique({
+    const existingUser = await this.userRepo.findOne({
       where: { id: userId },
+      select: {
+        id: true,
+        imageUrl: true,
+      },
     });
 
     if (!existingUser) {
       throw new NotFoundException("User not found");
     }
 
-    // If password is being updated, hash it
-    const updateData: Prisma.UserUpdateInput = { ...updateUserDto };
-    if (updateUserDto.password) {
-      updateData.password = await bcrypt.hash(updateUserDto.password, 10);
-    }
+    const updateData = {
+      ...updateUserDto,
+      ...(updateUserDto.password && {
+        password: await bcrypt.hash(updateUserDto.password, 10),
+      }),
+    };
 
     try {
-      const updatedUser = await this.prisma.user.update({
+      await this.userRepo.update(userId, updateData);
+
+      const updatedUser = await this.userRepo.findOne({
         where: { id: userId },
-        data: updateData,
         select: {
           id: true,
           email: true,
@@ -217,13 +247,17 @@ export class UsersService {
         },
       });
 
+      if (!updatedUser) {
+        throw new NotFoundException("User not found");
+      }
+
       if (updateUserDto.imageUrl && existingUser.imageUrl) {
-        console.log("yasin", existingUser.imageUrl);
         const absPath = path.join(
           process.cwd(),
           "public",
           existingUser.imageUrl
         );
+
         try {
           await fs.unlink(absPath);
         } catch (err) {
@@ -238,30 +272,27 @@ export class UsersService {
 
       return updatedUser;
     } catch (error) {
-      if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === "P2002"
-      ) {
-        throw new BadRequestException("Email or phone already exists");
+      if (error instanceof QueryFailedError) {
+        const driverError = error.driverError as {
+          code?: string;
+          errno?: number;
+        };
+
+        if (driverError.code === "ER_DUP_ENTRY" || driverError.errno === 1062) {
+          throw new BadRequestException("Email or phone already exists");
+        }
       }
+
       throw error;
     }
   }
 
   async remove(userId: string) {
-    // Check if user exists
-    const existingUser = await this.prisma.user.findUnique({
-      where: { id: userId },
-    });
+    const result = await this.userRepo.delete(userId);
 
-    if (!existingUser) {
+    if (!result.affected) {
       throw new NotFoundException("User not found");
     }
-
-    // Perform hard delete
-    await this.prisma.user.delete({
-      where: { id: userId },
-    });
 
     return { message: "User permanently deleted", id: userId };
   }
