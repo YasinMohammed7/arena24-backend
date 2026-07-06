@@ -8,6 +8,7 @@ import {
   OneToMany,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
+  VirtualColumn,
 } from "typeorm";
 import { UserBusinessRoles } from "./userBusinessRoles";
 import { Locations } from "./locations";
@@ -51,4 +52,16 @@ export class Businesses {
   })
   @JoinColumn([{ name: "ownerId", referencedColumnName: "id" }])
   owner: User;
+
+  @VirtualColumn({
+    query: (alias) =>
+      `SELECT COUNT(*) FROM locations WHERE locations.businessId = ${alias}.id`,
+  })
+  locationsCount: number;
+
+  @VirtualColumn({
+    query: (alias) =>
+      `SELECT COUNT(*) FROM user_business_roles WHERE user_business_roles.businessId = ${alias}.id`,
+  })
+  userBusinessRolesCount: number;
 }
