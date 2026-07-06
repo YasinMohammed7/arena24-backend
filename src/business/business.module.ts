@@ -10,6 +10,10 @@ import { ReservationModule } from "./reservation/reservation.module";
 import { ReviewModule } from "./review/review.module";
 import { OfferModule } from "./offer/offer.module";
 import { OfferCategoryModule } from "./offer-category/offer-category.module";
+import { UserBusinessRoles } from "@/database/entities/userBusinessRoles";
+import { Locations } from "@/database/entities/locations";
+import { Businesses } from "@/database/entities/businesses";
+import { TypeOrmModule } from "@nestjs/typeorm";
 
 @Module({
   imports: [
@@ -22,9 +26,9 @@ import { OfferCategoryModule } from "./offer-category/offer-category.module";
     ReviewModule,
     OfferModule,
     OfferCategoryModule,
+    TypeOrmModule.forFeature([Businesses, Locations, UserBusinessRoles]),
   ],
   controllers: [BusinessController],
   providers: [BusinessService],
-  exports: [BusinessService],
 })
 export class BusinessModule {}

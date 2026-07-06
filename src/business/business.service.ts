@@ -3,197 +3,178 @@ import {
   NotFoundException,
   ConflictException,
 } from "@nestjs/common";
-import { PrismaService } from "@/prisma/prisma.service";
-import { Prisma } from "@prisma/client";
 import { CreateBusinessDto } from "./dto/create-business.dto";
 import { UpdateBusinessDto } from "./dto/update-business.dto";
-import { BusinessEntity } from "./entities/business.entity";
+import { Businesses } from "@/database/entities/businesses";
+import { IsNull, QueryFailedError, Repository } from "typeorm";
+import { Locations } from "@/database/entities/locations";
+import { UserBusinessRoles } from "@/database/entities/userBusinessRoles";
+import { InjectRepository } from "@nestjs/typeorm";
+import { PaginatedResult, paginate } from "@/common/dto/paginated-result";
 
 @Injectable()
 export class BusinessService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    @InjectRepository(Businesses)
+    private readonly businessRepo: Repository<Businesses>,
+
+    @InjectRepository(Locations)
+    private readonly locationRepo: Repository<Locations>,
+
+    @InjectRepository(UserBusinessRoles)
+    private readonly userBusinessRolesRepo: Repository<UserBusinessRoles>
+  ) {}
 
   async create(
     createBusinessDto: CreateBusinessDto,
     ownerId: string
-  ): Promise<BusinessEntity> {
+  ): Promise<Businesses> {
     try {
-      const business = await this.prisma.business.create({
-        data: {
-          ...createBusinessDto,
-          ownerId,
+      const business = this.businessRepo.create({
+        ...createBusinessDto,
+        ownerId,
+      });
+
+      const savedBusiness = await this.businessRepo.save(business);
+
+      const createdBusiness = await this.businessRepo.findOne({
+        where: { id: savedBusiness.id },
+        relations: {
+          owner: true,
+          locations: true,
         },
-        include: {
+        select: {
+          id: true,
+          name: true,
+          description: true,
+          ownerId: true,
+          createdAt: true,
+          updatedAt: true,
           owner: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
-            },
+            id: true,
+            name: true,
+            email: true,
           },
           locations: {
-            select: {
-              id: true,
-              name: true,
-              type: true,
-              isActive: true,
-            },
+            id: true,
+            name: true,
+            type: true,
+            isActive: true,
           },
         },
       });
 
-      return new BusinessEntity(business);
-    } catch (error) {
-      if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === "P2002"
-      ) {
-        throw new ConflictException(
-          "A business with this name already exists for this owner"
-        );
+      if (!createdBusiness) {
+        throw new Error("Business was created but could not be loaded");
       }
+
+      return createdBusiness;
+    } catch (error) {
+      if (error instanceof QueryFailedError) {
+        const driverError = error.driverError as {
+          code?: string;
+          errno?: number;
+        };
+
+        if (driverError.code === "ER_DUP_ENTRY" || driverError.errno === 1062) {
+          throw new ConflictException(
+            "A business with this name already exists for this owner"
+          );
+        }
+      }
+
       throw error;
     }
   }
 
   async findAll(
     ownerId: string,
-    page: number = 1,
-    limit: number = 10
-  ): Promise<{
-    businesses: BusinessEntity[];
-    total: number;
-    page: number;
-    limit: number;
-  }> {
+    page = 1,
+    limit = 10
+  ): Promise<PaginatedResult<Businesses>> {
     const skip = (page - 1) * limit;
 
-    const [businesses, total] = await Promise.all([
-      this.prisma.business.findMany({
-        where: { ownerId },
-        skip,
-        take: limit,
-        include: {
-          owner: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
-            },
-          },
-          locations: {
-            select: {
-              id: true,
-              name: true,
-              type: true,
-              isActive: true,
-            },
-          },
-          _count: {
-            select: {
-              locations: true,
-              userRoles: true,
-            },
-          },
-        },
-        orderBy: { createdAt: "desc" },
-      }),
-      this.prisma.business.count({
-        where: { ownerId },
-      }),
-    ]);
-
-    return {
-      businesses: businesses.map((business) => new BusinessEntity(business)),
-      total,
-      page,
-      limit,
-    };
-  }
-
-  async findOne(id: number, ownerId: string): Promise<BusinessEntity> {
-    const business = await this.prisma.business.findFirst({
+    const [businesses, total] = await this.businessRepo.findAndCount({
       where: {
-        id,
         ownerId,
       },
-      include: {
+      skip,
+      take: limit,
+      relations: {
+        owner: true,
+        locations: true,
+      },
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        ownerId: true,
+        createdAt: true,
+        updatedAt: true,
+        locationsCount: true,
+        userBusinessRolesCount: true,
         owner: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-          },
+          id: true,
+          name: true,
+          email: true,
         },
         locations: {
-          where: {
-            isActive: true,
-            deletedAt: null,
-          },
-          include: {
-            managers: {
-              include: {
-                user: {
-                  select: {
-                    id: true,
-                    name: true,
-                    email: true,
-                  },
-                },
-              },
-            },
-            schedule: true,
-            LocationFacility: {
-              include: {
-                facility: true,
-              },
-            },
-            LocationAmenity: {
-              include: {
-                amenity: true,
-              },
-            },
-          },
-        },
-        userRoles: {
-          include: {
-            user: {
-              select: {
-                id: true,
-                name: true,
-                email: true,
-              },
-            },
-            role: {
-              select: {
-                id: true,
-                name: true,
-              },
-            },
-          },
-        },
-        _count: {
-          select: {
-            locations: true,
-            userRoles: true,
-          },
+          id: true,
+          name: true,
+          type: true,
+          isActive: true,
         },
       },
+      order: {
+        createdAt: "DESC",
+      },
     });
+
+    return paginate(businesses, total, page, limit);
+  }
+
+  async findOne(id: number, ownerId: string): Promise<Businesses> {
+    const business = await this.businessRepo
+
+      .createQueryBuilder("business")
+      .leftJoin("business.owner", "owner")
+      .addSelect(["owner.id", "owner.name", "owner.email"])
+      .leftJoinAndSelect(
+        "business.locations",
+        "location",
+        "location.isActive = :isActive AND location.deletedAt IS NULL",
+        { isActive: true }
+      )
+      .leftJoinAndSelect("location.locationManagers", "locationManager")
+      .leftJoin("locationManager.user", "managerUser")
+      .addSelect(["managerUser.id", "managerUser.name", "managerUser.email"])
+      .leftJoinAndSelect("location.schedules", "schedule")
+      .leftJoinAndSelect("location.locationFacilities", "locationFacility")
+      .leftJoinAndSelect("locationFacility.facility", "facility")
+      .leftJoinAndSelect("location.locationAmenities", "locationAmenity")
+      .leftJoinAndSelect("locationAmenity.amenity", "amenity")
+      .leftJoinAndSelect("business.userBusinessRoles", "userBusinessRole")
+      .leftJoin("userBusinessRole.user", "userRoleUser")
+      .addSelect(["userRoleUser.id", "userRoleUser.name", "userRoleUser.email"])
+      .leftJoin("userBusinessRole.role", "role")
+      .addSelect(["role.id", "role.name"])
+      .where("business.id = :id", { id })
+      .andWhere("business.ownerId = :ownerId", { ownerId })
+      .getOne();
 
     if (!business) {
       throw new NotFoundException("Business not found");
     }
 
-    return new BusinessEntity(business);
+    return business;
   }
 
   async update(
     id: number,
     updateBusinessDto: UpdateBusinessDto,
     ownerId: string
-  ): Promise<BusinessEntity> {
-    const existingBusiness = await this.prisma.business.findFirst({
+  ): Promise<Businesses> {
+    const existingBusiness = await this.businessRepo.findOne({
       where: {
         id,
         ownerId,
@@ -205,57 +186,69 @@ export class BusinessService {
     }
 
     try {
-      const business = await this.prisma.business.update({
+      await this.businessRepo.update(id, updateBusinessDto);
+
+      const business = await this.businessRepo.findOne({
         where: { id },
-        data: updateBusinessDto,
-        include: {
+        relations: {
+          owner: true,
+          locations: true,
+        },
+        select: {
+          id: true,
+          name: true,
+          description: true,
+          ownerId: true,
+          createdAt: true,
+          updatedAt: true,
+          locationsCount: true,
+          userBusinessRolesCount: true,
           owner: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
-            },
+            id: true,
+            name: true,
+            email: true,
           },
           locations: {
-            select: {
-              id: true,
-              name: true,
-              type: true,
-              isActive: true,
-            },
+            id: true,
+            name: true,
+            type: true,
+            isActive: true,
           },
         },
       });
 
-      return new BusinessEntity(business);
-    } catch (error) {
-      if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === "P2002"
-      ) {
-        throw new ConflictException(
-          "A business with this name already exists for this owner"
-        );
+      if (!business) {
+        throw new NotFoundException("Business not found");
       }
+
+      return business;
+    } catch (error) {
+      if (error instanceof QueryFailedError) {
+        const driverError = error.driverError as {
+          code?: string;
+          errno?: number;
+        };
+
+        if (driverError.code === "ER_DUP_ENTRY" || driverError.errno === 1062) {
+          throw new ConflictException(
+            "A business with this name already exists for this owner"
+          );
+        }
+      }
+
       throw error;
     }
   }
 
   async remove(id: number, ownerId: string): Promise<void> {
-    const business = await this.prisma.business.findFirst({
-      where: {
-        id,
-        ownerId,
-      },
+    const result = await this.businessRepo.delete({
+      id,
+      ownerId,
     });
 
-    if (!business) {
+    if (!result.affected) {
       throw new NotFoundException("Business not found");
     }
-
-    await this.prisma.business.delete({
-      where: { id },
-    });
   }
 
   async getBusinessStats(
@@ -267,24 +260,14 @@ export class BusinessService {
     totalStaff: number;
     businessAge: number;
   }> {
-    const business = await this.prisma.business.findFirst({
+    const business = await this.businessRepo.findOne({
       where: {
         id: businessId,
         ownerId,
       },
-      include: {
-        _count: {
-          select: {
-            locations: true,
-            userRoles: true,
-          },
-        },
-        locations: {
-          where: {
-            isActive: true,
-            deletedAt: null,
-          },
-        },
+      select: {
+        id: true,
+        createdAt: true,
       },
     });
 
@@ -292,52 +275,56 @@ export class BusinessService {
       throw new NotFoundException("Business not found");
     }
 
+    const [totalLocations, activeLocations, totalStaff] = await Promise.all([
+      this.locationRepo.count({
+        where: {
+          businessId,
+        },
+      }),
+
+      this.locationRepo.count({
+        where: {
+          businessId,
+          isActive: true,
+          deletedAt: IsNull(),
+        },
+      }),
+
+      this.userBusinessRolesRepo.count({
+        where: {
+          businessId,
+        },
+      }),
+    ]);
+
     const businessAge = Math.floor(
       (Date.now() - business.createdAt.getTime()) / (1000 * 60 * 60 * 24)
     );
 
     return {
-      totalLocations: business._count.locations,
-      activeLocations: business.locations.length,
-      totalStaff: business._count.userRoles,
+      totalLocations,
+      activeLocations,
+      totalStaff,
       businessAge,
     };
   }
 
-  async getBusinessesByUser(userId: string): Promise<BusinessEntity[]> {
-    const businesses = await this.prisma.business.findMany({
-      where: {
-        OR: [
-          { ownerId: userId },
-          {
-            userRoles: {
-              some: {
-                userId: userId,
-              },
-            },
-          },
-        ],
-      },
-      include: {
-        owner: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-          },
-        },
-        locations: {
-          select: {
-            id: true,
-            name: true,
-            type: true,
-            isActive: true,
-          },
-        },
-      },
-      orderBy: { createdAt: "desc" },
-    });
-
-    return businesses.map((business) => new BusinessEntity(business));
+  async getBusinessesByUser(userId: string): Promise<Businesses[]> {
+    return this.businessRepo
+      .createQueryBuilder("business")
+      .leftJoin("business.owner", "owner")
+      .addSelect(["owner.id", "owner.name", "owner.email"])
+      .leftJoin("business.locations", "location")
+      .addSelect([
+        "location.id",
+        "location.name",
+        "location.type",
+        "location.isActive",
+      ])
+      .leftJoin("business.userBusinessRoles", "userBusinessRole")
+      .where("business.ownerId = :userId", { userId })
+      .orWhere("userBusinessRole.userId = :userId", { userId })
+      .orderBy("business.createdAt", "DESC")
+      .getMany();
   }
 }
