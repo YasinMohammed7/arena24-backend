@@ -6,6 +6,7 @@ import {
   Get,
   Param,
   ParseBoolPipe,
+  ParseUUIDPipe,
   Patch,
   Query,
   Req,
@@ -73,7 +74,7 @@ export class UsersController {
   @ApiNotFoundResponse({ description: "User not found" })
   @ApiForbiddenResponse({ description: "Missing required role or permission" })
   findOne(
-    @Param("id") id: string,
+    @Param("id", ParseUUIDPipe) id: string,
     @CurrentUser() user: AuthUser,
     @Query("includeDeleted", new DefaultValuePipe(false), ParseBoolPipe)
     includeDeleted: boolean
@@ -98,7 +99,10 @@ export class UsersController {
   @ApiBadRequestResponse({ description: "User is already active" })
   @ApiNotFoundResponse({ description: "User not found" })
   @ApiForbiddenResponse({ description: "Missing required role or permission" })
-  activateUser(@Param("id") id: string, @CurrentUser() user: AuthUser) {
+  activateUser(
+    @Param("id", ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthUser
+  ) {
     return this.usersService.activateUser(
       id,
       user,
@@ -118,7 +122,10 @@ export class UsersController {
   @ApiBadRequestResponse({ description: "User is already inactive" })
   @ApiNotFoundResponse({ description: "User not found" })
   @ApiForbiddenResponse({ description: "Missing required role or permission" })
-  deactivateUser(@Param("id") id: string, @CurrentUser() user: AuthUser) {
+  deactivateUser(
+    @Param("id", ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthUser
+  ) {
     return this.usersService.deactivateUser(
       id,
       user,
@@ -138,7 +145,10 @@ export class UsersController {
   @ApiBadRequestResponse({ description: "User is already deleted" })
   @ApiNotFoundResponse({ description: "User not found" })
   @ApiForbiddenResponse({ description: "Missing required role or permission" })
-  softDeleteUser(@Param("id") id: string, @CurrentUser() user: AuthUser) {
+  softDeleteUser(
+    @Param("id", ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthUser
+  ) {
     return this.usersService.softDeleteUser(
       id,
       user,
@@ -158,7 +168,10 @@ export class UsersController {
   @ApiBadRequestResponse({ description: "User is not deleted" })
   @ApiNotFoundResponse({ description: "User not found" })
   @ApiForbiddenResponse({ description: "Missing required role or permission" })
-  restoreUser(@Param("id") id: string, @CurrentUser() user: AuthUser) {
+  restoreUser(
+    @Param("id", ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthUser
+  ) {
     return this.usersService.restoreUser(
       id,
       user,
@@ -193,7 +206,7 @@ export class UsersController {
   @ApiNotFoundResponse({ description: "User not found" })
   @ApiForbiddenResponse({ description: "Missing required permission" })
   update(
-    @Param("id") id: string,
+    @Param("id", ParseUUIDPipe) id: string,
     @Body() updateUserDto: UpdateUserDto,
     @UploadedFile() file?: Express.Multer.File
   ) {
@@ -211,7 +224,7 @@ export class UsersController {
   @ApiOkResponse({ description: "User permanently deleted" })
   @ApiNotFoundResponse({ description: "User not found" })
   @ApiForbiddenResponse({ description: "Missing required permission" })
-  remove(@Param("id") id: string) {
+  remove(@Param("id", ParseUUIDPipe) id: string) {
     return this.usersService.remove(id);
   }
 
