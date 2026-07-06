@@ -1,19 +1,21 @@
 import { Injectable } from "@nestjs/common";
-import * as Pusher from "pusher";
+import Pusher from "pusher";
 
 @Injectable()
 export class SmsService {
-  private pusher: Pusher;
+  private readonly pusher: Pusher;
 
   constructor() {
-    this.pusher = new Pusher({
+    const pusherOptions: Pusher.Options = {
       appId: "648333",
       key: "18zpxt4lp7bzwhnzrjck",
       secret: "dff0faphetf6pdolte9c",
       cluster: "mt1",
       useTLS: true,
       host: "lzf.ro",
-    });
+    };
+
+    this.pusher = new Pusher(pusherOptions);
   }
 
   async sendVerificationCode(contact: string, code: string): Promise<unknown> {
