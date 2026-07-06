@@ -1,11 +1,11 @@
-import { User } from "@prisma/client";
+import type { User } from "@/database/entities/user";
 
 /**
  * A `User` with sensitive/internal fields stripped — the shape returned in
  * auth responses (`register`, `login`). Mirrors the fields removed when
- * destructuring the Prisma `user` in `AuthService`.
+ * destructuring the `user` in `AuthService`.
  */
-export type SafeUser = Omit<
+export type SafeUser = Pick<
   User,
-  "password" | "ownerId" | "isActive" | "deletedAt"
+  "id" | "email" | "name" | "phone" | "createdAt" | "updatedAt" | "imageUrl"
 >;
