@@ -1,36 +1,41 @@
-import { Prisma } from "@prisma/client";
+import { FindOptionsWhere } from "typeorm";
 
-export function applyOwnershipFilter<T extends Prisma.UserWhereInput>(
-  baseWhere: T,
+type StringField<T> = {
+  [K in keyof T]-?: T[K] extends string | null | undefined ? K : never;
+}[keyof T] &
+  string;
+
+export function applyOwnershipFilter<
+  T extends { id: string },
+  K extends StringField<T>,
+>(
+  baseWhere: FindOptionsWhere<T>,
   user: { id: string },
   scope: string,
-  relationField?: string // e.g. "ownerId"
-): T {
-  // console.log('=== OWNERSHIP FILTER DEBUG ===');
-  // console.log('User:', user);
-  // console.log('Scope:', scope);
-  // console.log('RelationField:', relationField);
-  // console.log('User ID:', user?.id);
-  // console.log('================================');
-
+  relationField?: K // e.g. "ownerId"
+): FindOptionsWhere<T> | FindOptionsWhere<T>[] {
   if (scope.endsWith(":any")) {
     return baseWhere;
   }
 
   if (scope.endsWith(":own")) {
     if (!relationField) {
-      // fallback: only user himself
-      return { ...baseWhere, id: user.id };
-    } else {
-      // For 'read:own', users should see themselves AND users they own
       return {
         ...baseWhere,
-        OR: [
-          { id: user.id }, // The user themselves
-          { [relationField]: user.id }, // Users they own
-        ],
+        id: user.id,
       };
     }
+
+    return [
+      {
+        ...baseWhere,
+        id: user.id,
+      },
+      {
+        ...baseWhere,
+        [relationField]: user.id,
+      },
+    ];
   }
 
   return baseWhere;

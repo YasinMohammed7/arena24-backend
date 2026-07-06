@@ -1,18 +1,33 @@
 import {
-  Controller,
-  Get,
   Body,
-  Patch,
-  Param,
+  Controller,
+  DefaultValuePipe,
   Delete,
-  Req,
-  UseGuards,
+  Get,
+  Param,
+  ParseBoolPipe,
+  Patch,
   Query,
-  UseInterceptors,
+  Req,
   UploadedFile,
+  UseGuards,
+  UseInterceptors,
 } from "@nestjs/common";
 import { AuthGuard } from "@nestjs/passport";
-import { Request } from "express";
+import {
+  ApiBadRequestResponse,
+  ApiBearerAuth,
+  ApiBody,
+  ApiConsumes,
+  ApiForbiddenResponse,
+  ApiNotFoundResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiParam,
+  ApiQuery,
+  ApiTags,
+} from "@nestjs/swagger";
+import { FileInterceptor } from "@nestjs/platform-express";
 import { UsersService } from "./users.service";
 import { UpdateUserDto } from "./dto/update-user.dto";
 import { AuthorizationGuard } from "@/auth/guards/authorization.guard";
@@ -21,154 +36,166 @@ import {
   HasRoleOr,
   RequirePermission,
 } from "@/auth/decorators/authorize.decorator";
-import {
-  CurrentUser,
-  AuthUser,
-} from "@/auth/decorators/current-user.decorator";
-import { FileInterceptor } from "@nestjs/platform-express";
-import { diskStorage } from "multer";
-import { extname } from "path";
+import { CurrentUser } from "@/auth/decorators/current-user.decorator";
+import { AuthUser } from "@/auth/interfaces/auth-user.interface";
+import { RequestWithAuthScope } from "@/auth/interfaces/authenticated-request.interface";
+import { userPictureUploadOptions } from "./multer.config";
 
-/**
- * Request shape consumed by `findAll`: the JWT strategy attaches `user` and the
- * AuthorizationGuard attaches `authScope` (used for service-level filtering).
- */
-interface RequestWithAuthScope extends Request {
-  user: AuthUser;
-  authScope?: {
-    roles: string[];
-    permissions?: string[];
-    grantedPermission: string | null;
-  };
-}
-
+@ApiTags("Users")
+@ApiBearerAuth("access-token")
 @UseGuards(AuthGuard("jwt"))
 @Controller("users")
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
-  // Example: Has PLATFORM_ADMIN role OR BUSINESS_OWNER role OR read:own permission
   @UseGuards(AuthorizationGuard)
   @HasRoleOr(["BUSINESS_OWNER", "PLATFORM_MANAGER"], ["read:own", "read:any"])
   @Get()
+  @ApiOperation({ summary: "List users visible to the current user" })
+  @ApiOkResponse({ description: "Users returned successfully" })
+  @ApiForbiddenResponse({ description: "Missing required role or permission" })
   findAll(@Req() req: RequestWithAuthScope) {
     return this.usersService.findAll(req);
   }
 
-  // Example: Has BUSINESS_OWNER role OR PLATFORM_MANAGER role OR read:own permission
   @UseGuards(AuthorizationGuard)
   @HasRoleOr(["BUSINESS_OWNER", "PLATFORM_MANAGER"], ["read:own"])
   @Get(":id")
+  @ApiOperation({ summary: "Get one user by ID" })
+  @ApiParam({ name: "id", type: String })
+  @ApiQuery({
+    name: "includeDeleted",
+    required: false,
+    type: Boolean,
+    description: "Include soft-deleted users",
+  })
+  @ApiOkResponse({ description: "User returned successfully" })
+  @ApiNotFoundResponse({ description: "User not found" })
+  @ApiForbiddenResponse({ description: "Missing required role or permission" })
   findOne(
     @Param("id") id: string,
     @CurrentUser() user: AuthUser,
-    @Query("includeDeleted") includeDeleted?: string
+    @Query("includeDeleted", new DefaultValuePipe(false), ParseBoolPipe)
+    includeDeleted: boolean
   ) {
-    // If user has 'read:any' permission or PLATFORM_* role, show any user
-    const hasReadAny =
-      user.permissions.includes("read:any") ||
-      user.roles.some((role: string) => role.startsWith("PLATFORM_"));
-    const includeDeletedUsers = includeDeleted === "true";
     return this.usersService.findOne(
       id,
       user,
-      hasReadAny ? "any" : "own",
-      includeDeletedUsers
+      this.getUserScope(user, "read:any"),
+      includeDeleted
     );
   }
 
-  // Activate user endpoint
   @UseGuards(AuthorizationGuard)
   @Authorize({
     roles: ["PLATFORM_ADMIN", "PLATFORM_MANAGER"],
     permissions: ["activate:user"],
   })
   @Patch(":id/activate")
+  @ApiOperation({ summary: "Activate a user" })
+  @ApiParam({ name: "id", type: String })
+  @ApiOkResponse({ description: "User activated successfully" })
+  @ApiBadRequestResponse({ description: "User is already active" })
+  @ApiNotFoundResponse({ description: "User not found" })
+  @ApiForbiddenResponse({ description: "Missing required role or permission" })
   activateUser(@Param("id") id: string, @CurrentUser() user: AuthUser) {
-    const hasManageAny =
-      user.permissions.includes("activate:user") ||
-      user.roles.some((role: string) => role.startsWith("PLATFORM_"));
     return this.usersService.activateUser(
       id,
       user,
-      hasManageAny ? "any" : "own"
+      this.getUserScope(user, "activate:user")
     );
   }
 
-  // Deactivate user endpoint
   @UseGuards(AuthorizationGuard)
   @Authorize({
     roles: ["PLATFORM_ADMIN", "PLATFORM_MANAGER"],
     permissions: ["deactivate:user"],
   })
   @Patch(":id/deactivate")
+  @ApiOperation({ summary: "Deactivate a user" })
+  @ApiParam({ name: "id", type: String })
+  @ApiOkResponse({ description: "User deactivated successfully" })
+  @ApiBadRequestResponse({ description: "User is already inactive" })
+  @ApiNotFoundResponse({ description: "User not found" })
+  @ApiForbiddenResponse({ description: "Missing required role or permission" })
   deactivateUser(@Param("id") id: string, @CurrentUser() user: AuthUser) {
-    const hasManageAny =
-      user.permissions.includes("deactivate:user") ||
-      user.roles.some((role: string) => role.startsWith("PLATFORM_"));
     return this.usersService.deactivateUser(
       id,
       user,
-      hasManageAny ? "any" : "own"
+      this.getUserScope(user, "deactivate:user")
     );
   }
 
-  // Soft delete user endpoint
   @UseGuards(AuthorizationGuard)
   @Authorize({
     roles: ["PLATFORM_ADMIN", "PLATFORM_MANAGER"],
     permissions: ["delete:user"],
   })
   @Delete(":id/soft")
+  @ApiOperation({ summary: "Soft-delete a user" })
+  @ApiParam({ name: "id", type: String })
+  @ApiOkResponse({ description: "User soft-deleted successfully" })
+  @ApiBadRequestResponse({ description: "User is already deleted" })
+  @ApiNotFoundResponse({ description: "User not found" })
+  @ApiForbiddenResponse({ description: "Missing required role or permission" })
   softDeleteUser(@Param("id") id: string, @CurrentUser() user: AuthUser) {
-    const hasDeleteAny =
-      user.permissions.includes("delete:user") ||
-      user.roles.some((role: string) => role.startsWith("PLATFORM_"));
     return this.usersService.softDeleteUser(
       id,
       user,
-      hasDeleteAny ? "any" : "own"
+      this.getUserScope(user, "delete:user")
     );
   }
 
-  // Restore user endpoint
   @UseGuards(AuthorizationGuard)
   @Authorize({
     roles: ["PLATFORM_ADMIN", "PLATFORM_MANAGER"],
     permissions: ["restore:user"],
   })
   @Patch(":id/restore")
+  @ApiOperation({ summary: "Restore a soft-deleted user" })
+  @ApiParam({ name: "id", type: String })
+  @ApiOkResponse({ description: "User restored successfully" })
+  @ApiBadRequestResponse({ description: "User is not deleted" })
+  @ApiNotFoundResponse({ description: "User not found" })
+  @ApiForbiddenResponse({ description: "Missing required role or permission" })
   restoreUser(@Param("id") id: string, @CurrentUser() user: AuthUser) {
-    const hasRestoreAny =
-      user.permissions.includes("restore:user") ||
-      user.roles.some((role: string) => role.startsWith("PLATFORM_"));
     return this.usersService.restoreUser(
       id,
       user,
-      hasRestoreAny ? "any" : "own"
+      this.getUserScope(user, "restore:user")
     );
   }
 
-  // Example: Must have update:user permission
   @UseGuards(AuthorizationGuard)
-  // @RequirePermission('update:user')
+  @RequirePermission("update:user")
   @Patch(":id")
-  @UseInterceptors(
-    FileInterceptor("picture", {
-      storage: diskStorage({
-        destination: "./public/uploads/user",
-        filename: (req, file, cb) => {
-          const uniqueSuffix =
-            Date.now() + "-" + Math.round(Math.random() * 1e9);
-          cb(null, uniqueSuffix + extname(file.originalname));
-        },
-      }),
-    })
-  )
+  @UseInterceptors(FileInterceptor("picture", userPictureUploadOptions))
+  @ApiOperation({ summary: "Update a user" })
+  @ApiParam({ name: "id", type: String })
+  @ApiConsumes("multipart/form-data")
+  @ApiBody({
+    schema: {
+      type: "object",
+      properties: {
+        picture: { type: "string", format: "binary" },
+        password: { type: "string" },
+        imageUrl: { type: "string" },
+        name: { type: "string" },
+        email: { type: "string" },
+        phone: { type: "string" },
+      },
+    },
+  })
+  @ApiOkResponse({ description: "User updated successfully" })
+  @ApiBadRequestResponse({
+    description: "Invalid payload or duplicate email/phone",
+  })
+  @ApiNotFoundResponse({ description: "User not found" })
+  @ApiForbiddenResponse({ description: "Missing required permission" })
   update(
     @Param("id") id: string,
     @Body() updateUserDto: UpdateUserDto,
-    @UploadedFile() file: Express.Multer.File
+    @UploadedFile() file?: Express.Multer.File
   ) {
     return this.usersService.update(id, {
       ...updateUserDto,
@@ -176,42 +203,66 @@ export class UsersController {
     });
   }
 
-  // Example: Must have delete:user permission
   @UseGuards(AuthorizationGuard)
   @RequirePermission("delete:user")
   @Delete(":id")
+  @ApiOperation({ summary: "Permanently delete a user" })
+  @ApiParam({ name: "id", type: String })
+  @ApiOkResponse({ description: "User permanently deleted" })
+  @ApiNotFoundResponse({ description: "User not found" })
+  @ApiForbiddenResponse({ description: "Missing required permission" })
   remove(@Param("id") id: string) {
     return this.usersService.remove(id);
   }
 
   @UseGuards(AuthorizationGuard)
   @Delete()
+  @ApiOperation({ summary: "Permanently delete the current user" })
+  @ApiOkResponse({ description: "Current user permanently deleted" })
+  @ApiNotFoundResponse({ description: "User not found" })
   removeMe(@CurrentUser("id") userId: string) {
     return this.usersService.remove(userId);
   }
 
   @UseGuards(AuthorizationGuard)
   @Patch()
-  @UseInterceptors(
-    FileInterceptor("picture", {
-      storage: diskStorage({
-        destination: "./public/uploads/user",
-        filename: (req, file, cb) => {
-          const uniqueSuffix =
-            Date.now() + "-" + Math.round(Math.random() * 1e9);
-          cb(null, uniqueSuffix + extname(file.originalname));
-        },
-      }),
-    })
-  )
+  @UseInterceptors(FileInterceptor("picture", userPictureUploadOptions))
+  @ApiOperation({ summary: "Update the current user" })
+  @ApiConsumes("multipart/form-data")
+  @ApiBody({
+    schema: {
+      type: "object",
+      properties: {
+        picture: { type: "string", format: "binary" },
+        password: { type: "string" },
+        imageUrl: { type: "string" },
+        name: { type: "string" },
+        email: { type: "string" },
+        phone: { type: "string" },
+      },
+    },
+  })
+  @ApiOkResponse({ description: "Current user updated successfully" })
+  @ApiBadRequestResponse({
+    description: "Invalid payload or duplicate email/phone",
+  })
+  @ApiNotFoundResponse({ description: "User not found" })
   updateMe(
     @CurrentUser("id") userId: string,
     @Body() updateUserDto: UpdateUserDto,
-    @UploadedFile() file: Express.Multer.File
+    @UploadedFile() file?: Express.Multer.File
   ) {
     return this.usersService.update(userId, {
       ...updateUserDto,
       ...(file && { imageUrl: `/uploads/user/${file.filename}` }),
     });
+  }
+
+  private getUserScope(user: AuthUser, permission: string): "own" | "any" {
+    const hasAnyScope =
+      user.permissions.includes(permission) ||
+      user.roles.some((role) => role.startsWith("PLATFORM_"));
+
+    return hasAnyScope ? "any" : "own";
   }
 }

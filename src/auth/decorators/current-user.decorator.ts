@@ -1,20 +1,6 @@
 import { createParamDecorator, ExecutionContext } from "@nestjs/common";
-import { Request } from "express";
-
-/**
- * Shape of the user object attached to the request by the JWT strategy's
- * `validate()` method. Keep this in sync with `JwtStrategy.validate`.
- */
-export interface AuthUser {
-  id: string;
-  email: string;
-  roles: string[];
-  permissions: string[];
-}
-
-interface RequestWithUser extends Request {
-  user: AuthUser;
-}
+import { AuthUser } from "../interfaces/auth-user.interface";
+import { RequestWithUser } from "../interfaces/authenticated-request.interface";
 
 /**
  * Extracts the authenticated user (or a single property of it) from the request.
