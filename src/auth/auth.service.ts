@@ -7,7 +7,6 @@ import {
   UnprocessableEntityException,
   ForbiddenException,
 } from "@nestjs/common";
-import { PrismaService } from "@/prisma/prisma.service";
 import { JwtService } from "@nestjs/jwt";
 import { type StringValue } from "ms";
 import * as bcrypt from "bcryptjs";
@@ -20,50 +19,53 @@ import * as crypto from "node:crypto";
 import { RolesService } from "./roles/roles.service";
 import { MailService } from "@/mail/mail.service";
 import { SmsService } from "@/sms/sms.service";
+import { InjectRepository } from "@nestjs/typeorm";
+import { MoreThan, Repository } from "typeorm";
+import { User } from "@/database/entities/user";
+import { VerificationCodes } from "@/database/entities/verificationCodes";
+import { Role } from "@/database/entities/role";
+import { RefreshTokens } from "@/database/entities/refreshTokens";
+import { PasswordResetTokens } from "@/database/entities/passwordResetTokens";
 
 @Injectable()
 export class AuthService {
   constructor(
-    private prisma: PrismaService,
     private jwt: JwtService,
     private rolesService: RolesService, // Inject RolesService
     private mailService: MailService, // Inject MailService for sending emails
-    private smsService: SmsService // Inject SmsService for sending SMS
+    private smsService: SmsService, // Inject SmsService for sending SMS
+    @InjectRepository(User) private readonly userRepo: Repository<User>, // Inject User repository
+    @InjectRepository(VerificationCodes)
+    private readonly verificationCodeRepo: Repository<VerificationCodes>, // Inject VerificationCodes repository
+    @InjectRepository(Role) private readonly roleRepo: Repository<Role>,
+    @InjectRepository(RefreshTokens)
+    private readonly refreshTokensRepo: Repository<RefreshTokens>, // Inject RefreshTokens repository
+    @InjectRepository(PasswordResetTokens)
+    private readonly passwordResetTokensRepo: Repository<PasswordResetTokens> // Inject PasswordResetTokens repository
   ) {}
 
   async sendVerificationCode(contact: string): Promise<{ message: string }> {
-    // Generate 4-digit code
     const code = Math.floor(1000 + Math.random() * 9000).toString();
 
-    // Set expiration to 10 minutes from now
     const expiresAt = new Date();
     expiresAt.setMinutes(expiresAt.getMinutes() + 10);
 
-    // Store or update verification code in database
-    await this.prisma.verificationCode.upsert({
-      where: { contact },
-      update: {
-        code,
-        expiresAt,
-      },
-      create: {
+    await this.verificationCodeRepo.upsert(
+      {
         contact,
         code,
         expiresAt,
       },
-    });
+      ["contact"]
+    );
 
-    // Determine if contact is email or phone and send accordingly
     const isEmail = contact.includes("@");
 
     if (isEmail) {
-      // Send via email
       await this.mailService.sendVerificationCode(contact, code);
     } else {
-      // Send via SMS (you'll need to implement SMS service)
       await this.smsService.sendVerificationCode(contact, code);
-      // await this.mailService.sendVerificationCode(contact, code);
-      console.log(`SMS verification code for ${contact}: ${code}`); // For development
+      console.log(`SMS verification code for ${contact}: ${code}`);
     }
 
     return {
@@ -75,8 +77,7 @@ export class AuthService {
     contact: string,
     code: string
   ): Promise<{ message: string; valid: boolean }> {
-    // First, check if a verification code exists for this contact with the provided code (regardless of expiration)
-    const verificationRecord = await this.prisma.verificationCode.findFirst({
+    const verificationRecord = await this.verificationCodeRepo.findOne({
       where: {
         contact,
         code,
@@ -84,22 +85,19 @@ export class AuthService {
     });
 
     if (!verificationRecord) {
-      // Code doesn't exist for this contact - invalid code
       throw new UnprocessableEntityException("Invalid verification code");
     }
 
-    // Check if the code is expired
     if (verificationRecord.expiresAt <= new Date()) {
-      // Code exists but is expired - delete it and throw 410
-      await this.prisma.verificationCode.delete({
-        where: { id: verificationRecord.id },
+      await this.verificationCodeRepo.delete({
+        id: verificationRecord.id,
       });
+
       throw new GoneException("Verification code has expired");
     }
 
-    // Code is valid and not expired - delete the used verification code
-    await this.prisma.verificationCode.delete({
-      where: { id: verificationRecord.id },
+    await this.verificationCodeRepo.delete({
+      id: verificationRecord.id,
     });
 
     return {
@@ -113,23 +111,25 @@ export class AuthService {
   ): Promise<{ message: string; data: SafeUser }> {
     const { email, password, phone } = registerDto;
 
-    const userExists = await this.prisma.user.findFirst({
-      where: {
-        OR: [{ email: email }, { phone: phone }],
+    const userExists = await this.userRepo.findOne({
+      where: [{ email }, { phone }],
+      select: {
+        id: true,
       },
     });
 
-    if (userExists)
+    if (userExists) {
       throw new ConflictException("Email or phone already taken.");
+    }
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    const user = await this.prisma.user.create({
-      data: {
-        ...registerDto,
-        password: hashedPassword,
-      },
+    const userToCreate = this.userRepo.create({
+      ...registerDto,
+      password: hashedPassword,
     });
+
+    const user = await this.userRepo.save(userToCreate);
 
     const {
       password: _password,
@@ -138,11 +138,17 @@ export class AuthService {
       deletedAt: _deletedAt,
       ...userWithoutSensitiveFields
     } = user;
+
     // Assign default role to the user after registration
-    const clientUserRole = await this.prisma.role.findUnique({
+    const clientUserRole = await this.roleRepo.findOne({
       where: { name: "CLIENT_USER" },
+      select: {
+        id: true,
+        name: true,
+      },
     });
-    if (!clientUserRole || !clientUserRole.id) {
+
+    if (!clientUserRole) {
       throw new Error("CLIENT_USER role not found in the database");
     }
 
@@ -161,7 +167,7 @@ export class AuthService {
     access_token: string;
     refresh_token: string;
   }> {
-    const user = await this.prisma.user.findUnique({
+    const user = await this.userRepo.findOne({
       where: { email: data.email },
     });
 
@@ -216,33 +222,36 @@ export class AuthService {
       expirationDate.setDate(expirationDate.getDate() + days);
     }
 
-    await this.prisma.refreshToken.create({
-      data: {
-        token: refreshToken,
-        userId: userId,
-        expiresAt: expirationDate,
-      },
+    const tokenToCreate = this.refreshTokensRepo.create({
+      token: refreshToken,
+      userId,
+      expiresAt: expirationDate,
     });
+
+    await this.refreshTokensRepo.save(tokenToCreate);
   }
 
   async refreshToken(currentRefreshToken: string) {
     // Verify the refresh token exists and is valid
-    const storedToken = await this.prisma.refreshToken.findFirst({
+    const storedToken = await this.refreshTokensRepo.findOne({
       where: {
         token: currentRefreshToken,
-        expiresAt: {
-          gt: new Date(), // Token should not be expired
-        },
+        expiresAt: MoreThan(new Date()),
       },
-      include: {
+      relations: {
+        user: true,
+      },
+      select: {
+        id: true,
+        token: true,
+        userId: true,
+        expiresAt: true,
         user: {
-          select: {
-            id: true,
-            email: true,
-            name: true,
-            isActive: true,
-            deletedAt: true,
-          },
+          id: true,
+          email: true,
+          name: true,
+          isActive: true,
+          deletedAt: true,
         },
       },
     });
@@ -254,8 +263,8 @@ export class AuthService {
     // Check if user is soft deleted
     if (storedToken.user.deletedAt) {
       // Delete all refresh tokens for this user
-      await this.prisma.refreshToken.deleteMany({
-        where: { userId: storedToken.user.id },
+      await this.refreshTokensRepo.delete({
+        userId: storedToken.user.id,
       });
       throw new UnauthorizedException("User account no longer exists");
     }
@@ -263,8 +272,8 @@ export class AuthService {
     // Check if user is active
     if (!storedToken.user.isActive) {
       // Delete all refresh tokens for this user
-      await this.prisma.refreshToken.deleteMany({
-        where: { userId: storedToken.user.id },
+      await this.refreshTokensRepo.delete({
+        userId: storedToken.user.id,
       });
       throw new UnauthorizedException("User account is deactivated");
     }
@@ -279,8 +288,8 @@ export class AuthService {
     const newRefreshToken = crypto.randomUUID();
 
     // Delete old refresh token and store new one
-    await this.prisma.refreshToken.delete({
-      where: { id: storedToken.id },
+    await this.refreshTokensRepo.delete({
+      id: storedToken.id,
     });
 
     await this.storeRefreshToken(storedToken.user.id, newRefreshToken);
@@ -297,11 +306,9 @@ export class AuthService {
     refreshToken: string
   ): Promise<{ message: string }> {
     // Delete the specific refresh token
-    await this.prisma.refreshToken.deleteMany({
-      where: {
-        userId: userId,
-        token: refreshToken,
-      },
+    await this.refreshTokensRepo.delete({
+      userId,
+      token: refreshToken,
     });
 
     return {
@@ -314,7 +321,14 @@ export class AuthService {
   ): Promise<{ message: string }> {
     const { email } = forgotPasswordDto;
 
-    const user = await this.prisma.user.findUnique({ where: { email } });
+    const user = await this.userRepo.findOne({
+      where: { email },
+      select: {
+        id: true,
+        email: true,
+      },
+    });
+
     if (!user) {
       // Don't reveal if email exists or not for security
       return {
@@ -328,18 +342,14 @@ export class AuthService {
     resetTokenExpiry.setMinutes(resetTokenExpiry.getMinutes() + 10); // Token expires in 10 min
 
     // Store reset token in database
-    await this.prisma.passwordResetToken.upsert({
-      where: { userId: user.id },
-      update: {
-        token: resetToken,
-        expiresAt: resetTokenExpiry,
-      },
-      create: {
+    await this.passwordResetTokensRepo.upsert(
+      {
         userId: user.id,
         token: resetToken,
         expiresAt: resetTokenExpiry,
       },
-    });
+      ["userId"]
+    );
 
     await this.mailService.sendPasswordResetEmail(email, resetToken);
 
@@ -354,15 +364,16 @@ export class AuthService {
     const { token, password } = resetPasswordDto;
 
     // Find valid reset token
-    const resetTokenRecord = await this.prisma.passwordResetToken.findFirst({
+    const resetTokenRecord = await this.passwordResetTokensRepo.findOne({
       where: {
-        token: token,
-        expiresAt: {
-          gt: new Date(), // Token should not be expired
-        },
+        token,
+        expiresAt: MoreThan(new Date()),
       },
-      include: {
-        user: true,
+      select: {
+        id: true,
+        userId: true,
+        token: true,
+        expiresAt: true,
       },
     });
 
@@ -374,19 +385,18 @@ export class AuthService {
     const hashedPassword = await bcrypt.hash(password, 10);
 
     // Update user password
-    await this.prisma.user.update({
-      where: { id: resetTokenRecord.userId },
-      data: { password: hashedPassword },
+    await this.userRepo.update(resetTokenRecord.userId, {
+      password: hashedPassword,
     });
 
     // Delete used reset token
-    await this.prisma.passwordResetToken.delete({
-      where: { id: resetTokenRecord.id },
+    await this.passwordResetTokensRepo.delete({
+      id: resetTokenRecord.id,
     });
 
     // Delete all refresh tokens for this user (force re-login)
-    await this.prisma.refreshToken.deleteMany({
-      where: { userId: resetTokenRecord.userId },
+    await this.refreshTokensRepo.delete({
+      userId: resetTokenRecord.userId,
     });
 
     return {

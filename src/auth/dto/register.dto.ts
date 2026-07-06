@@ -8,11 +8,14 @@ import {
 
 export class RegisterDto {
   @IsEmail()
+  @IsNotEmpty()
   email: string;
 
+  @IsString()
   @IsNotEmpty()
   name: string;
 
+  @IsString()
   @IsNotEmpty()
   @Matches(/^\+?\d{10,20}$/, {
     message:
