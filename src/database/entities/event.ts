@@ -8,6 +8,7 @@ import {
   OneToMany,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
+  VirtualColumn,
 } from "typeorm";
 import { EventFacilities } from "./eventFacilities";
 import { EventIncludedOptions } from "./eventIncludedOptions";
@@ -81,4 +82,10 @@ export class Event {
   })
   @JoinColumn([{ name: "locationId", referencedColumnName: "id" }])
   location: Locations;
+
+  @VirtualColumn({
+    query: (alias) =>
+      `SELECT COUNT(*) FROM reservations WHERE reservations.eventId = ${alias}.id`,
+  })
+  reservationsCount: number;
 }
