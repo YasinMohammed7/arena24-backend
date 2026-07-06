@@ -3,41 +3,75 @@ import {
   NotFoundException,
   ConflictException,
 } from "@nestjs/common";
-import { PrismaService } from "@/prisma/prisma.service";
-import { Prisma } from "@prisma/client";
 import { CreatePermissionDto } from "./dto/create-permission.dto";
+import { Permission } from "@/database/entities/permission";
+import { InjectRepository } from "@nestjs/typeorm";
+import { Role } from "@/database/entities/role";
+import { RolePermission } from "@/database/entities/rolePermissions";
+import { User } from "@/database/entities/user";
+import { UserPermissions } from "@/database/entities/userPermissions";
+import { UserRoles } from "@/database/entities/userRoles";
+import { QueryFailedError, Repository } from "typeorm";
 
 @Injectable()
 export class PermissionsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    @InjectRepository(Permission)
+    private readonly permissionsRepo: Repository<Permission>,
+    @InjectRepository(Role)
+    private readonly rolesRepo: Repository<Role>,
+    @InjectRepository(RolePermission)
+    private readonly rolePermissionRepo: Repository<RolePermission>,
+    @InjectRepository(User)
+    private readonly usersRepo: Repository<User>,
+    @InjectRepository(UserPermissions)
+    private readonly userPermissionsRepo: Repository<UserPermissions>,
+    @InjectRepository(UserRoles)
+    private readonly userRolesRepo: Repository<UserRoles>
+  ) {}
 
   // Permission methods
   async createPermission(createPermissionDto: CreatePermissionDto) {
     try {
-      const permission = await this.prisma.permission.create({
-        data: createPermissionDto,
-      });
+      const permission = this.permissionsRepo.create(createPermissionDto);
+      const savedPermission = await this.permissionsRepo.save(permission);
+
       return {
         message: "Permission created successfully",
-        data: permission,
+        data: savedPermission,
       };
     } catch (error) {
-      if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === "P2002"
-      ) {
-        throw new ConflictException("Permission name already exists");
+      if (error instanceof QueryFailedError) {
+        const driverError = error.driverError as {
+          code?: string;
+          errno?: number;
+        };
+
+        if (driverError.code === "ER_DUP_ENTRY" || driverError.errno === 1062) {
+          throw new ConflictException("Permission name already exists");
+        }
       }
+
       throw error;
     }
   }
 
   async getPermissions() {
-    return this.prisma.permission.findMany({
-      include: {
+    return this.permissionsRepo.find({
+      relations: {
         rolePermissions: {
-          include: {
-            role: true,
+          role: true,
+        },
+      },
+      select: {
+        id: true,
+        name: true,
+        rolePermissions: {
+          roleId: true,
+          permissionId: true,
+          role: {
+            id: true,
+            name: true,
           },
         },
       },
@@ -46,42 +80,54 @@ export class PermissionsService {
 
   // Assignment methods
   async assignPermissionToRole(roleId: string, permissionId: string) {
-    // Check if role exists
-    const role = await this.prisma.role.findUnique({ where: { id: roleId } });
+    const role = await this.rolesRepo.findOne({
+      where: { id: roleId },
+      select: {
+        id: true,
+        name: true,
+      },
+    });
+
     if (!role) {
       throw new NotFoundException("Role not found");
     }
 
-    // Check if permission exists
-    const permission = await this.prisma.permission.findUnique({
+    const permission = await this.permissionsRepo.findOne({
       where: { id: permissionId },
+      select: {
+        id: true,
+        name: true,
+      },
     });
+
     if (!permission) {
       throw new NotFoundException("Permission not found");
     }
 
-    // Check if assignment already exists
-    const existingAssignment = await this.prisma.rolePermission.findUnique({
+    const roleAlreadyHasPermission = await this.rolePermissionRepo.exists({
       where: {
-        roleId_permissionId: { roleId, permissionId },
+        roleId,
+        permissionId,
       },
     });
 
-    if (existingAssignment) {
+    if (roleAlreadyHasPermission) {
       throw new ConflictException("Role already has this permission");
     }
 
-    const rolePermission = await this.prisma.rolePermission.create({
-      data: { roleId, permissionId },
-      include: {
-        role: true,
-        permission: true,
-      },
+    await this.rolePermissionRepo.insert({
+      roleId,
+      permissionId,
     });
 
     return {
       message: "Permission assigned to role successfully",
-      data: rolePermission,
+      data: {
+        roleId,
+        permissionId,
+        role,
+        permission,
+      },
     };
   }
 
@@ -91,67 +137,69 @@ export class PermissionsService {
     permissionId: string,
     assignedBy?: string
   ) {
-    // Check if user exists
-    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    const user = await this.usersRepo.findOne({
+      where: { id: userId },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+      },
+    });
+
     if (!user) {
       throw new NotFoundException("User not found");
     }
 
-    // Check if permission exists
-    const permission = await this.prisma.permission.findUnique({
+    const permission = await this.permissionsRepo.findOne({
       where: { id: permissionId },
+      select: {
+        id: true,
+        name: true,
+      },
     });
+
     if (!permission) {
       throw new NotFoundException("Permission not found");
     }
 
-    // Check if assignment already exists
-    const existingAssignment = await this.prisma.userPermission.findUnique({
+    const userAlreadyHasPermission = await this.userPermissionsRepo.exists({
       where: {
-        userId_permissionId: { userId, permissionId },
+        userId,
+        permissionId,
       },
     });
 
-    if (existingAssignment) {
+    if (userAlreadyHasPermission) {
       throw new ConflictException("User already has this permission");
     }
 
-    const userPermission = await this.prisma.userPermission.create({
-      data: {
-        userId,
-        permissionId,
-        assignedBy: assignedBy || null,
-      },
-      include: {
-        user: {
-          select: { id: true, name: true, email: true },
-        },
-        permission: true,
-      },
+    await this.userPermissionsRepo.insert({
+      userId,
+      permissionId,
+      assignedBy: assignedBy || null,
     });
 
     return {
       message: "Permission assigned to user successfully",
-      data: userPermission,
+      data: {
+        userId,
+        permissionId,
+        assignedBy: assignedBy || null,
+        user,
+        permission,
+      },
     };
   }
 
   async removePermissionFromRole(roleId: string, permissionId: string) {
-    const rolePermission = await this.prisma.rolePermission.findUnique({
-      where: {
-        roleId_permissionId: { roleId, permissionId },
-      },
+    const result = await this.rolePermissionRepo.delete({
+      roleId,
+      permissionId,
     });
 
-    if (!rolePermission) {
+    if (!result.affected) {
       throw new NotFoundException("Role permission assignment not found");
     }
-
-    await this.prisma.rolePermission.delete({
-      where: {
-        roleId_permissionId: { roleId, permissionId },
-      },
-    });
 
     return {
       message: "Permission removed from role successfully",
@@ -159,21 +207,14 @@ export class PermissionsService {
   }
 
   async removePermissionFromUser(userId: string, permissionId: string) {
-    const userPermission = await this.prisma.userPermission.findUnique({
-      where: {
-        userId_permissionId: { userId, permissionId },
-      },
+    const result = await this.userPermissionsRepo.delete({
+      userId,
+      permissionId,
     });
 
-    if (!userPermission) {
+    if (!result.affected) {
       throw new NotFoundException("User permission assignment not found");
     }
-
-    await this.prisma.userPermission.delete({
-      where: {
-        userId_permissionId: { userId, permissionId },
-      },
-    });
 
     return {
       message: "Permission removed from user successfully",
@@ -181,15 +222,27 @@ export class PermissionsService {
   }
 
   async getUserRoles(userId: string) {
-    return this.prisma.userRole.findMany({
+    return this.userRolesRepo.find({
       where: { userId },
-      include: {
+      relations: {
         role: {
-          include: {
-            rolePermissions: {
-              include: {
-                permission: true,
-              },
+          rolePermissions: {
+            permission: true,
+          },
+        },
+      },
+      select: {
+        userId: true,
+        roleId: true,
+        role: {
+          id: true,
+          name: true,
+          rolePermissions: {
+            roleId: true,
+            permissionId: true,
+            permission: {
+              id: true,
+              name: true,
             },
           },
         },
@@ -198,10 +251,19 @@ export class PermissionsService {
   }
 
   async getUserDirectPermissions(userId: string) {
-    return this.prisma.userPermission.findMany({
+    return this.userPermissionsRepo.find({
       where: { userId },
-      include: {
+      relations: {
         permission: true,
+      },
+      select: {
+        userId: true,
+        permissionId: true,
+        assignedBy: true,
+        permission: {
+          id: true,
+          name: true,
+        },
       },
     });
   }
@@ -232,40 +294,30 @@ export class PermissionsService {
     userId: string,
     permissionName: string
   ): Promise<boolean> {
-    // Check role-based permissions
-    const userWithRolePermission = await this.prisma.user.findFirst({
+    const hasRolePermission = await this.userRolesRepo.exists({
       where: {
-        id: userId,
-        userRoles: {
-          some: {
-            role: {
-              rolePermissions: {
-                some: {
-                  permission: { name: permissionName },
-                },
-              },
+        userId,
+        role: {
+          rolePermissions: {
+            permission: {
+              name: permissionName,
             },
           },
         },
       },
     });
 
-    if (userWithRolePermission) {
+    if (hasRolePermission) {
       return true;
     }
 
-    // Check direct permissions
-    const userWithDirectPermission = await this.prisma.user.findFirst({
+    return this.userPermissionsRepo.exists({
       where: {
-        id: userId,
-        userPermissions: {
-          some: {
-            permission: { name: permissionName },
-          },
+        userId,
+        permission: {
+          name: permissionName,
         },
       },
     });
-
-    return !!userWithDirectPermission;
   }
 }

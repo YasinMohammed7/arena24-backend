@@ -49,7 +49,9 @@ export class RolesService {
   async getRoles() {
     return this.roleRepo.find({
       relations: {
-        permissions: true,
+        rolePermissions: {
+          permission: true,
+        },
         userRoles: {
           user: true,
         },
@@ -57,9 +59,13 @@ export class RolesService {
       select: {
         id: true,
         name: true,
-        permissions: {
-          id: true,
-          name: true,
+        rolePermissions: {
+          roleId: true,
+          permissionId: true,
+          permission: {
+            id: true,
+            name: true,
+          },
         },
         userRoles: {
           roleId: true,
@@ -78,7 +84,9 @@ export class RolesService {
     const role = await this.roleRepo.findOne({
       where: { id },
       relations: {
-        permissions: true,
+        rolePermissions: {
+          permission: true,
+        },
         userRoles: {
           user: true,
         },
@@ -86,9 +94,13 @@ export class RolesService {
       select: {
         id: true,
         name: true,
-        permissions: {
-          id: true,
-          name: true,
+        rolePermissions: {
+          roleId: true,
+          permissionId: true,
+          permission: {
+            id: true,
+            name: true,
+          },
         },
         userRoles: {
           userId: true,
@@ -194,7 +206,9 @@ export class RolesService {
       where: { userId },
       relations: {
         role: {
-          permissions: true,
+          rolePermissions: {
+            permission: true,
+          },
         },
       },
       select: {
@@ -203,9 +217,13 @@ export class RolesService {
         role: {
           id: true,
           name: true,
-          permissions: {
-            id: true,
-            name: true,
+          rolePermissions: {
+            roleId: true,
+            permissionId: true,
+            permission: {
+              id: true,
+              name: true,
+            },
           },
         },
       },

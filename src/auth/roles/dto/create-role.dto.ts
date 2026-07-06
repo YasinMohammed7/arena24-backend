@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, Length } from "class-validator";
+import { IsString, IsNotEmpty, IsUUID, Length } from "class-validator";
 
 export class CreateRoleDto {
   @IsString()
@@ -8,11 +8,11 @@ export class CreateRoleDto {
 }
 
 export class AssignRoleDto {
-  @IsString()
+  @IsUUID()
   @IsNotEmpty()
   userId: string;
 
-  @IsString()
+  @IsUUID()
   @IsNotEmpty()
   roleId: string;
 }
