@@ -28,7 +28,7 @@ export class Businesses {
   @Column("varchar", { name: "description", nullable: true, length: 191 })
   description: string | null;
 
-  @Column("varchar", { name: "ownerId", length: 191 })
+  @Column({ name: "ownerId" })
   ownerId: string;
 
   @CreateDateColumn({ name: "createdAt", precision: 3 })

@@ -47,10 +47,10 @@ export class Locations {
   @Column("int", { name: "capacity", nullable: true })
   capacity: number | null;
 
-  @Column("double", { name: "latitude", nullable: true, precision: 22 })
+  @Column("double", { name: "latitude", nullable: true })
   latitude: number | null;
 
-  @Column("double", { name: "longitude", nullable: true, precision: 22 })
+  @Column("double", { name: "longitude", nullable: true })
   longitude: number | null;
 
   @Column("varchar", { name: "experience", nullable: true, length: 191 })
@@ -77,7 +77,7 @@ export class Locations {
   @Column("int", { name: "businessId" })
   businessId: number;
 
-  @Column("varchar", { name: "ownerId", length: 191 })
+  @Column({ name: "ownerId" })
   ownerId: string;
 
   @CreateDateColumn({ name: "createdAt", precision: 3 })

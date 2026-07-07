@@ -19,7 +19,7 @@ export class PasswordResetTokens {
   @Column("varchar", { name: "token", unique: true, length: 191 })
   token: string;
 
-  @Column("varchar", { name: "userId", unique: true, length: 191 })
+  @Column({ name: "userId", unique: true })
   userId: string;
 
   @Column("datetime", { name: "expiresAt" })

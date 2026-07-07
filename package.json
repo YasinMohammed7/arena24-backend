@@ -12,6 +12,11 @@
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main",
+    "typeorm": "typeorm-ts-node-commonjs",
+    "db:drop": "npm run typeorm schema:drop -- -d src/database/datasource.ts",
+    "db:migration:generate": "npm run typeorm migration:generate -- -d src/database/datasource.ts",
+    "db:migration:run": "npm run typeorm migration:run -- -d src/database/datasource.ts",
+    "db:seed": "ts-node src/database/seeds/seed.ts",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
     "lint:fix": "eslint . --fix",
     "prettier:check": "prettier . --check",
@@ -22,9 +27,6 @@
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "prepare": "husky"
-  },
-  "prisma": {
-    "seed": "ts-node prisma/seed.ts"
   },
   "dependencies": {
     "@nestjs/common": "^11.1.27",
@@ -37,7 +39,6 @@
     "@nestjs/serve-static": "^5.0.5",
     "@nestjs/swagger": "^11.4.4",
     "@nestjs/typeorm": "^11.0.2",
-    "@prisma/client": "^6.19.2",
     "@types/nodemailer": "^8.0.1",
     "bcryptjs": "^3.0.3",
     "class-transformer": "^0.5.1",
@@ -79,7 +80,6 @@
     "jiti": "^2.7.0",
     "lint-staged": "^17.0.5",
     "prettier": "^3.8.4",
-    "prisma": "^6.19.2",
     "source-map-support": "^0.5.21",
     "supertest": "^7.2.2",
     "ts-jest": "^29.4.11",

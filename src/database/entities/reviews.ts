@@ -27,10 +27,10 @@ export class Reviews {
   @Column("int", { name: "stars" })
   stars: number;
 
-  @Column("varchar", { name: "userId", length: 191 })
+  @Column({ name: "userId" })
   userId: string;
 
-  @Column("int", { name: "locationId" })
+  @Column({ name: "locationId" })
   locationId: number;
 
   @CreateDateColumn({ name: "createdAt", precision: 3 })

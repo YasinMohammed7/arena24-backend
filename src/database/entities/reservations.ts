@@ -11,7 +11,7 @@ import {
 import { Event } from "./event";
 import { Locations } from "./locations";
 import { User } from "./user";
-import { ReservationStatus } from "@/common/enums/reservation-status.enum";
+import { ReservationStatus } from "../../common/enums/reservation-status.enum";
 
 @Index("reservations_userId_idx", ["userId"], {})
 @Index("reservations_eventId_idx", ["eventId"], {})
@@ -21,7 +21,7 @@ export class Reservations {
   @PrimaryGeneratedColumn({ type: "int", name: "id" })
   id: number;
 
-  @Column("varchar", { name: "userId", nullable: true, length: 191 })
+  @Column({ name: "userId", nullable: true })
   userId: string | null;
 
   @Column("varchar", { name: "name", length: 191 })

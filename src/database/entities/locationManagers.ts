@@ -21,7 +21,7 @@ export class LocationManagers {
   @PrimaryGeneratedColumn({ type: "int", name: "id" })
   id: number;
 
-  @Column("varchar", { name: "userId", length: 191 })
+  @Column({ name: "userId" })
   userId: string;
 
   @Column("int", { name: "locationId" })

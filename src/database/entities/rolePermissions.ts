@@ -8,14 +8,12 @@ export class RolePermission {
   @Column("varchar", {
     primary: true,
     name: "roleId",
-    length: 191,
   })
   roleId: string;
 
   @Column("varchar", {
     primary: true,
     name: "permissionId",
-    length: 191,
   })
   permissionId: string;
 
