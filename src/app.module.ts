@@ -1,5 +1,4 @@
 import { UsersModule } from "./users/users.module";
-import { PrismaModule } from "@/prisma/prisma.module";
 import { Module } from "@nestjs/common";
 import { ServeStaticModule } from "@nestjs/serve-static";
 import { join } from "path";
@@ -35,7 +34,6 @@ import { DatabaseService } from "./database/database.service";
         synchronize: false,
       }),
     }),
-    PrismaModule,
     AuthModule,
     RolesModule,
     MailModule,

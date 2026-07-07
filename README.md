@@ -57,24 +57,20 @@ $ npm run test:e2e
 $ npm run test:cov
 ```
 
-## Prisma ORM
-
-```
-$ npm install prisma --save-dev         // Install Prisma CLI as a development dependency
-$ npm install @prisma/client            // Install Prisma Client as a production dependency
-$ npx prisma init                       // Initialize Prisma in your project
-$ npx prisma migrate dev --name init    // Create initial migration
-$ npx prisma generate                   // Generate artifacts (e.g. Prisma Client)
-$ npx prisma db push                    // Push the schema to the database
-$ npx prisma db seed                    // Seed the database with initial data
-```
+## TypeORM Migrations
 
 ```bash
-npx prisma migrate dev
-```
+# Drop all tables
+$ npm run db:drop
 
-```bash
-npx prisma generate
+# Generate a new migration from entity changes
+$ npm run db:migration:generate -- src/database/migrations/MigrationName
+
+# Run pending migrations
+$ npm run db:migration:run
+
+# Seed the database
+$ npm run db:seed
 ```
 
 ## Api Endpoints

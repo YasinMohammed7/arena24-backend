@@ -20,7 +20,7 @@ export class RefreshTokens {
   @Column("varchar", { name: "token", unique: true, length: 191 })
   token: string;
 
-  @Column("varchar", { name: "userId", length: 191 })
+  @Column({ name: "userId" })
   userId: string;
 
   @Column("datetime", { name: "expiresAt" })

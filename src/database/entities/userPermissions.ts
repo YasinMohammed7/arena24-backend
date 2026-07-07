@@ -5,10 +5,10 @@ import { User } from "./user";
 @Index("user_permissions_permissionId_fkey", ["permissionId"], {})
 @Entity("user_permissions")
 export class UserPermissions {
-  @Column("varchar", { primary: true, name: "userId", length: 191 })
+  @Column("varchar", { primary: true, name: "userId" })
   userId: string;
 
-  @Column("varchar", { primary: true, name: "permissionId", length: 191 })
+  @Column("varchar", { primary: true, name: "permissionId" })
   permissionId: string;
 
   @Column("datetime", {

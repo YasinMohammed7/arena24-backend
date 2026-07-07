@@ -2,52 +2,52 @@ graph LR
   AppModule --> ConfigModule
   ConfigModule --> ConfigHostModule
   ConfigHostModule --> ConfigModule
-  ConfigHostModule --> PrismaModule
-  PrismaModule --> ConfigModule
-  PrismaModule --> ConfigHostModule
-  ConfigModule --> PrismaModule
-  AppModule --> PrismaModule
+  ConfigHostModule --> DatabaseService
+  DatabaseService --> ConfigModule
+  DatabaseService --> ConfigHostModule
+  ConfigModule --> DatabaseService
+  AppModule --> DatabaseService
   AppModule --> AuthModule
   AuthModule --> JwtModule
   JwtModule --> ConfigModule
   JwtModule --> ConfigHostModule
-  JwtModule --> PrismaModule
-  AuthModule --> PrismaModule
+  JwtModule --> DatabaseService
+  AuthModule --> DatabaseService
   AuthModule --> RolesModule
-  RolesModule --> PrismaModule
+  RolesModule --> DatabaseService
   RolesModule --> ConfigModule
   RolesModule --> ConfigHostModule
   AuthModule --> PermissionsModule
-  PermissionsModule --> PrismaModule
+  PermissionsModule --> DatabaseService
   PermissionsModule --> ConfigModule
   PermissionsModule --> ConfigHostModule
   AuthModule --> MailModule
   MailModule --> ConfigModule
   MailModule --> ConfigHostModule
-  MailModule --> PrismaModule
+  MailModule --> DatabaseService
   AuthModule --> SmsModule
   SmsModule --> ConfigModule
   SmsModule --> ConfigHostModule
-  SmsModule --> PrismaModule
+  SmsModule --> DatabaseService
   AuthModule --> ConfigModule
   AuthModule --> ConfigHostModule
   AppModule --> RolesModule
   AppModule --> UsersModule
   UsersModule --> ConfigModule
   UsersModule --> ConfigHostModule
-  UsersModule --> PrismaModule
+  UsersModule --> DatabaseService
   AppModule --> TestingModule
   TestingModule --> ConfigModule
   TestingModule --> ConfigHostModule
-  TestingModule --> PrismaModule
+  TestingModule --> DatabaseService
   AppModule --> CommonModule
   CommonModule --> ConfigModule
   CommonModule --> ConfigHostModule
-  CommonModule --> PrismaModule
+  CommonModule --> DatabaseService
   AppModule --> LocationsModule
   LocationsModule --> ConfigModule
   LocationsModule --> ConfigHostModule
-  LocationsModule --> PrismaModule
+  LocationsModule --> DatabaseService
   AppModule --> MailModule
   AppModule --> SmsModule
   AppModule --> ConfigHostModule
