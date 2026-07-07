@@ -3,6 +3,7 @@ import { TypeOrmModule } from "@nestjs/typeorm";
 import { LocationsService } from "./locations.service";
 import { LocationsController } from "./locations.controller";
 import { Locations } from "@/database/entities/locations";
+import { LocationManagers } from "@/database/entities/locationManagers";
 import { LocationFacilities } from "@/database/entities/locationFacilities";
 import { LocationAmenities } from "@/database/entities/locationAmenities";
 import { Media } from "@/database/entities/media";
@@ -11,6 +12,7 @@ import { Media } from "@/database/entities/media";
   imports: [
     TypeOrmModule.forFeature([
       Locations,
+      LocationManagers,
       LocationFacilities,
       LocationAmenities,
       Media,
