@@ -14,7 +14,6 @@ import {
   HttpStatus,
   ParseFilePipe,
   MaxFileSizeValidator,
-  FileTypeValidator,
 } from "@nestjs/common";
 import {
   ApiTags,
@@ -45,28 +44,20 @@ import {
   MAX_LOCATION_GALLERY_FILES,
 } from "./multer.config";
 
-const imageFileValidator = new FileTypeValidator({
-  fileType: /^image\/(jpeg|png|webp|svg\+xml)$/,
-});
-
 const coverFilePipe = new ParseFilePipe({
   fileIsRequired: false,
-  validators: [
-    new MaxFileSizeValidator({ maxSize: MAX_LOCATION_COVER_SIZE }),
-    imageFileValidator,
-  ],
+  validators: [new MaxFileSizeValidator({ maxSize: MAX_LOCATION_COVER_SIZE })],
 });
 
 const galleryFilesPipe = new ParseFilePipe({
   fileIsRequired: true,
   validators: [
     new MaxFileSizeValidator({ maxSize: MAX_LOCATION_GALLERY_IMAGE_SIZE }),
-    imageFileValidator,
   ],
 });
 
 @ApiTags("Locations")
-@Controller("business/locations")
+@Controller("locations")
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth("access-token")
 export class LocationsController {

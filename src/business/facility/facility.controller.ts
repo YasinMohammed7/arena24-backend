@@ -34,7 +34,7 @@ import { HasRoleOr } from "@/auth/decorators/authorize.decorator";
 
 @ApiTags("facility")
 @ApiBearerAuth("access-token")
-@Controller("business/facility")
+@Controller("facility")
 @UseGuards(JwtAuthGuard)
 export class FacilityController {
   constructor(private readonly facilityService: FacilityService) {}

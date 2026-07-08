@@ -53,7 +53,14 @@ export class MediaService {
     const media = await this.mediaRepo.findOneBy({ id });
     if (!media) throw new NotFoundException("Media not found");
 
-    fs.unlinkSync(media.path);
+    try {
+      fs.unlinkSync(media.path);
+    } catch (err) {
+      console.warn(
+        `File not found on disk, removing DB record only: ${media.path}`,
+        err
+      );
+    }
     return this.mediaRepo.remove(media);
   }
 }

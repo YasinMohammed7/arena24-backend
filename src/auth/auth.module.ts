@@ -13,11 +13,16 @@ import { VerificationCodes } from "@/database/entities/verificationCodes";
 import { Role } from "@/database/entities/role";
 import { RefreshTokens } from "@/database/entities/refreshTokens";
 import { PasswordResetTokens } from "@/database/entities/passwordResetTokens";
+import { ConfigModule, ConfigService } from "@nestjs/config";
 
 @Module({
   imports: [
-    JwtModule.register({
-      secret: process.env.JWT_SECRET,
+    JwtModule.registerAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => ({
+        secret: config.get<string>("JWT_SECRET"),
+      }),
     }),
     TypeOrmModule.forFeature([
       User,

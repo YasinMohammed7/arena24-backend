@@ -30,7 +30,7 @@ import { HasRoleOr } from "@/auth/decorators/authorize.decorator";
 
 @ApiTags("schedule")
 @ApiBearerAuth("access-token")
-@Controller("business/schedule")
+@Controller("schedule")
 @UseGuards(JwtAuthGuard)
 export class ScheduleController {
   constructor(private readonly scheduleService: ScheduleService) {}

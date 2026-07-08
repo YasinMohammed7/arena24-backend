@@ -34,7 +34,7 @@ import { ApiPaginatedResponse } from "@/common/decorators/api-paginated-response
 
 @ApiTags("Reviews")
 @ApiBearerAuth("access-token")
-@Controller("business/reviews")
+@Controller("reviews")
 @UseGuards(JwtAuthGuard)
 export class ReviewController {
   constructor(private readonly reviewService: ReviewService) {}

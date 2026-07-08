@@ -50,6 +50,8 @@ export class ReservationService {
       );
     }
 
+    let resolvedLocationId = locationId;
+
     if (eventId) {
       const event = await this.eventRepo.findOne({
         where: { id: eventId },
@@ -57,12 +59,16 @@ export class ReservationService {
           id: true,
           maxPeople: true,
           name: true,
+          locationId: true,
         },
       });
 
       if (!event) {
         throw new NotFoundException(`Event with ID ${eventId} not found`);
       }
+
+      // Infer locationId from the event
+      resolvedLocationId = event.locationId;
 
       if (event.maxPeople !== null) {
         const result = await this.reservationRepo
@@ -128,7 +134,7 @@ export class ReservationService {
       email: user.email,
       phone: user.phone,
       eventId,
-      locationId,
+      locationId: resolvedLocationId,
       status: reservationData.status || ReservationStatus.PENDING,
     });
 

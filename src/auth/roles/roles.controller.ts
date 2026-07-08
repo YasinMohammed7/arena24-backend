@@ -20,6 +20,7 @@ import {
 } from "@nestjs/swagger";
 import { RolesService } from "./roles.service";
 import { CreateRoleDto, AssignRoleDto } from "./dto/create-role.dto";
+import { RoleResponseDto } from "./dto/role-response.dto";
 import { AuthGuard } from "@nestjs/passport";
 import { AuthorizationGuard } from "@/auth/guards/authorization.guard";
 import { HasRoleOr } from "@/auth/decorators/authorize.decorator";
@@ -34,7 +35,7 @@ export class RolesController {
   // Role endpoints
   @UseGuards(AuthorizationGuard)
   @HasRoleOr(["PLATFORM_ADMIN"], ["create:role"])
-  @Post("roles")
+  @Post()
   @ApiOperation({ summary: "Create a role" })
   @ApiOkResponse({ description: "Role created successfully" })
   @ApiBadRequestResponse({ description: "Invalid role payload" })
@@ -45,24 +46,30 @@ export class RolesController {
 
   @UseGuards(AuthorizationGuard)
   @HasRoleOr(["PLATFORM_ADMIN"], ["read:roles"])
-  @Get("roles")
-  @ApiOperation({ summary: "Get all roles" })
-  @ApiOkResponse({ description: "Roles retrieved successfully" })
+  @Get()
+  @ApiOperation({ summary: "Get all roles with their permissions" })
+  @ApiOkResponse({
+    description: "Roles retrieved successfully with permissions",
+    type: [RoleResponseDto],
+  })
   getRoles() {
     return this.rolesService.getRoles();
   }
 
   @UseGuards(AuthorizationGuard)
   @HasRoleOr(["PLATFORM_ADMIN"], ["read:role"])
-  @Get("roles/:id")
-  @ApiOperation({ summary: "Get a role by ID" })
+  @Get(":id")
+  @ApiOperation({ summary: "Get a role by ID with its permissions" })
   @ApiParam({
     name: "id",
     type: "string",
     format: "uuid",
     description: "Role ID",
   })
-  @ApiOkResponse({ description: "Role retrieved successfully" })
+  @ApiOkResponse({
+    description: "Role retrieved successfully with permissions",
+    type: RoleResponseDto,
+  })
   @ApiNotFoundResponse({ description: "Role not found" })
   getRoleById(@Param("id", ParseUUIDPipe) id: string) {
     return this.rolesService.getRoleById(id);
@@ -70,7 +77,7 @@ export class RolesController {
 
   @UseGuards(AuthorizationGuard)
   @HasRoleOr(["PLATFORM_ADMIN"], ["delete:role"])
-  @Delete("role/:id")
+  @Delete(":id")
   @ApiOperation({ summary: "Delete a role" })
   @ApiParam({
     name: "id",

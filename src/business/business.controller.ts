@@ -34,7 +34,7 @@ import { CurrentUser } from "@/auth/decorators/current-user.decorator";
 
 @ApiTags("Business")
 @ApiBearerAuth("access-token")
-@Controller("business")
+@Controller()
 @UseGuards(JwtAuthGuard)
 export class BusinessController {
   constructor(private readonly businessService: BusinessService) {}

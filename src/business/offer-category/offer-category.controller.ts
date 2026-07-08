@@ -36,7 +36,7 @@ import { ApiPaginatedResponse } from "@/common/decorators/api-paginated-response
 
 @ApiTags("Offer Categories")
 @ApiBearerAuth("access-token")
-@Controller("business/offer-categories")
+@Controller("offer-categories")
 @UseGuards(JwtAuthGuard)
 export class OfferCategoryController {
   constructor(private readonly offerCategoryService: OfferCategoryService) {}

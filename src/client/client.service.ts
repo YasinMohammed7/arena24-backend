@@ -150,7 +150,7 @@ export class ClientService {
   async findAllActiveEvents() {
     const now = new Date();
 
-    return this.eventRepo.find({
+    const events = await this.eventRepo.find({
       where: {
         date: MoreThanOrEqual(now),
         location: {
@@ -167,6 +167,7 @@ export class ClientService {
         },
         eventIncludedOptions: true,
         eventRequirements: true,
+        reservations: true,
       },
       select: {
         id: true,
@@ -177,6 +178,7 @@ export class ClientService {
         endHour: true,
         price: true,
         imageUrl: true,
+        maxPeople: true,
         location: {
           id: true,
           name: true,
@@ -199,11 +201,31 @@ export class ClientService {
         },
         eventIncludedOptions: true,
         eventRequirements: true,
+        reservations: {
+          id: true,
+        },
       },
       order: {
         date: "ASC",
       },
     });
+
+    return events.map((event) => ({
+      id: event.id,
+      name: event.name,
+      description: event.description,
+      date: event.date,
+      startHour: event.startHour,
+      endHour: event.endHour,
+      price: event.price,
+      imageUrl: event.imageUrl,
+      maxPeople: event.maxPeople,
+      reservationCount: event.reservations?.length ?? 0,
+      location: event.location,
+      eventFacilities: event.eventFacilities,
+      eventIncludedOptions: event.eventIncludedOptions,
+      eventRequirements: event.eventRequirements,
+    }));
   }
 
   async findActiveEventById(id: number) {
@@ -227,6 +249,7 @@ export class ClientService {
         },
         eventIncludedOptions: true,
         eventRequirements: true,
+        reservations: true,
       },
       select: {
         id: true,
@@ -237,6 +260,7 @@ export class ClientService {
         endHour: true,
         price: true,
         imageUrl: true,
+        maxPeople: true,
         location: {
           id: true,
           name: true,
@@ -259,6 +283,9 @@ export class ClientService {
         },
         eventIncludedOptions: true,
         eventRequirements: true,
+        reservations: {
+          id: true,
+        },
       },
     });
 
@@ -266,7 +293,22 @@ export class ClientService {
       throw new NotFoundException("Event not found or not available");
     }
 
-    return event;
+    return {
+      id: event.id,
+      name: event.name,
+      description: event.description,
+      date: event.date,
+      startHour: event.startHour,
+      endHour: event.endHour,
+      price: event.price,
+      imageUrl: event.imageUrl,
+      maxPeople: event.maxPeople,
+      reservationCount: event.reservations?.length ?? 0,
+      location: event.location,
+      eventFacilities: event.eventFacilities,
+      eventIncludedOptions: event.eventIncludedOptions,
+      eventRequirements: event.eventRequirements,
+    };
   }
 
   /**

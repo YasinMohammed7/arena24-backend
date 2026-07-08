@@ -34,10 +34,7 @@ export class Role {
   @OneToMany(() => UserRoles, (userRoles) => userRoles.role)
   userRoles: UserRoles[];
 
-  @OneToMany(
-    () => RolePermission,
-    (rolePermission) => rolePermission.permission
-  )
+  @OneToMany(() => RolePermission, (rolePermission) => rolePermission.role)
   rolePermissions: RolePermission[];
 
   @CreateDateColumn({ name: "createdAt" })

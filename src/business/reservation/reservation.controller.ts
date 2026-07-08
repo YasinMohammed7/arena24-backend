@@ -28,7 +28,7 @@ import { JwtAuthGuard } from "@/auth/guards/jwt-auth.guard";
 import { CurrentUser } from "@/auth/decorators/current-user.decorator";
 
 @ApiTags("Reservations")
-@Controller("business/reservations")
+@Controller("reservations")
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth("access-token")
 export class ReservationController {

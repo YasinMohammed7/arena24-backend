@@ -29,7 +29,7 @@ export async function seedUsers(dataSource: DataSource) {
       email: "fery@lzf.ro",
       name: "Fery LZF",
       phone: "1234567890",
-      password: "$2b$10$bMj65pS1vbiXW/vpgAinP.DLBEStKV.E/pG22hVX3aN9GOEmdmIFe",
+      password: "$2b$10$1VgpQCSvNUv7gPr3JqJjneL02PQQOoy/r.5DGBk1CjO2Qj.HWixJy",
     },
     ["email"]
   );
@@ -48,7 +48,7 @@ export async function seedUsers(dataSource: DataSource) {
       email: "owner@lzf.ro",
       name: "Business Owner User",
       phone: "1234567891",
-      password: "$2b$10$bMj65pS1vbiXW/vpgAinP.DLBEStKV.E/pG22hVX3aN9GOEmdmIFe",
+      password: "$2b$10$1VgpQCSvNUv7gPr3JqJjneL02PQQOoy/r.5DGBk1CjO2Qj.HWixJy",
     },
     ["email"]
   );

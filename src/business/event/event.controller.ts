@@ -12,7 +12,6 @@ import {
   UploadedFile,
   ParseFilePipe,
   MaxFileSizeValidator,
-  FileTypeValidator,
   HttpStatus,
 } from "@nestjs/common";
 import {
@@ -40,16 +39,11 @@ import { eventCoverUploadOptions, MAX_EVENT_COVER_SIZE } from "./multer.config";
 
 const coverFilePipe = new ParseFilePipe({
   fileIsRequired: false,
-  validators: [
-    new MaxFileSizeValidator({ maxSize: MAX_EVENT_COVER_SIZE }),
-    new FileTypeValidator({
-      fileType: /^image\/(jpeg|png|webp|svg\+xml)$/,
-    }),
-  ],
+  validators: [new MaxFileSizeValidator({ maxSize: MAX_EVENT_COVER_SIZE })],
 });
 
 @ApiTags("Events")
-@Controller("business/events")
+@Controller("events")
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth("access-token")
 export class EventController {

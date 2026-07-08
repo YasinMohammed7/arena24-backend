@@ -31,6 +31,7 @@ import {
 import { FileInterceptor } from "@nestjs/platform-express";
 import { UsersService } from "./users.service";
 import { UpdateUserDto } from "./dto/update-user.dto";
+import { UserResponseDto } from "./dto/user-response.dto";
 import { AuthorizationGuard } from "@/auth/guards/authorization.guard";
 import {
   Authorize,
@@ -53,7 +54,10 @@ export class UsersController {
   @HasRoleOr(["BUSINESS_OWNER", "PLATFORM_MANAGER"], ["read:own", "read:any"])
   @Get()
   @ApiOperation({ summary: "List users visible to the current user" })
-  @ApiOkResponse({ description: "Users returned successfully" })
+  @ApiOkResponse({
+    description: "Users returned successfully with roles and permissions",
+    type: [UserResponseDto],
+  })
   @ApiForbiddenResponse({ description: "Missing required role or permission" })
   findAll(@Req() req: RequestWithAuthScope) {
     return this.usersService.findAll(req);
@@ -70,7 +74,10 @@ export class UsersController {
     type: Boolean,
     description: "Include soft-deleted users",
   })
-  @ApiOkResponse({ description: "User returned successfully" })
+  @ApiOkResponse({
+    description: "User returned successfully with roles and permissions",
+    type: UserResponseDto,
+  })
   @ApiNotFoundResponse({ description: "User not found" })
   @ApiForbiddenResponse({ description: "Missing required role or permission" })
   findOne(

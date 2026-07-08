@@ -33,8 +33,17 @@ export class UsersService {
       "ownerId"
     );
 
-    return this.userRepo.find({
+    const users = await this.userRepo.find({
       where,
+      relations: {
+        userRoles: {
+          role: {
+            rolePermissions: {
+              permission: true,
+            },
+          },
+        },
+      },
       select: {
         id: true,
         email: true,
@@ -45,8 +54,45 @@ export class UsersService {
         deletedAt: true,
         createdAt: true,
         updatedAt: true,
+        userRoles: {
+          userId: true,
+          roleId: true,
+          role: {
+            id: true,
+            name: true,
+            rolePermissions: {
+              roleId: true,
+              permissionId: true,
+              permission: {
+                id: true,
+                name: true,
+              },
+            },
+          },
+        },
       },
     });
+
+    return users.map((user) => ({
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      phone: user.phone,
+      ownerId: user.ownerId,
+      isActive: user.isActive,
+      deletedAt: user.deletedAt,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
+      roles: user.userRoles?.map((ur) => ur.role.name) ?? [],
+      permissions: [
+        ...new Set(
+          user.userRoles?.flatMap(
+            (ur) =>
+              ur.role.rolePermissions?.map((rp) => rp.permission.name) ?? []
+          ) ?? []
+        ),
+      ],
+    }));
   }
 
   async findOne(
@@ -77,6 +123,15 @@ export class UsersService {
 
     const foundUser = await this.userRepo.findOne({
       where,
+      relations: {
+        userRoles: {
+          role: {
+            rolePermissions: {
+              permission: true,
+            },
+          },
+        },
+      },
       select: {
         id: true,
         email: true,
@@ -87,6 +142,22 @@ export class UsersService {
         deletedAt: true,
         createdAt: true,
         updatedAt: true,
+        userRoles: {
+          userId: true,
+          roleId: true,
+          role: {
+            id: true,
+            name: true,
+            rolePermissions: {
+              roleId: true,
+              permissionId: true,
+              permission: {
+                id: true,
+                name: true,
+              },
+            },
+          },
+        },
       },
     });
 
@@ -94,7 +165,26 @@ export class UsersService {
       throw new NotFoundException("User not found");
     }
 
-    return foundUser;
+    return {
+      id: foundUser.id,
+      email: foundUser.email,
+      name: foundUser.name,
+      phone: foundUser.phone,
+      ownerId: foundUser.ownerId,
+      isActive: foundUser.isActive,
+      deletedAt: foundUser.deletedAt,
+      createdAt: foundUser.createdAt,
+      updatedAt: foundUser.updatedAt,
+      roles: foundUser.userRoles?.map((ur) => ur.role.name) ?? [],
+      permissions: [
+        ...new Set(
+          foundUser.userRoles?.flatMap(
+            (ur) =>
+              ur.role.rolePermissions?.map((rp) => rp.permission.name) ?? []
+          ) ?? []
+        ),
+      ],
+    };
   }
 
   async activateUser(id: string, user: AuthUser, scope: "own" | "any") {

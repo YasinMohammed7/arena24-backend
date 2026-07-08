@@ -4,6 +4,7 @@ import { AppModule } from "./app.module";
 import { Logger, ValidationPipe } from "@nestjs/common";
 import { AppGraphService } from "./common/services/app-graph.service";
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
+import * as os from "os";
 
 async function bootstrap() {
   const logger = new Logger("Bootstrap");
@@ -73,7 +74,12 @@ async function bootstrap() {
   });
   const port = process.env.PORT ?? 3000;
   await app.listen(port);
+  const ip =
+    Object.values(os.networkInterfaces())
+      .flat()
+      .find((n) => n?.family === "IPv4" && !n.internal)?.address ?? "127.0.0.1";
   logger.log(`App running on: http://localhost:${port}`);
+  logger.log(`Network access:  http://${ip}:${port}`);
   logger.log(`Documentation found on: http://localhost:${port}/api/docs`);
 }
 void bootstrap();

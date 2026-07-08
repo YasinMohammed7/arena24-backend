@@ -1,53 +1,132 @@
 graph LR
-  AppModule --> ConfigModule
+  AppModule --> ServeStaticModule
+  ServeStaticModule --> ConfigModule
   ConfigModule --> ConfigHostModule
   ConfigHostModule --> ConfigModule
-  ConfigHostModule --> DatabaseService
-  DatabaseService --> ConfigModule
-  DatabaseService --> ConfigHostModule
-  ConfigModule --> DatabaseService
-  AppModule --> DatabaseService
+  ConfigHostModule --> TypeOrmCoreModule
+  TypeOrmCoreModule --> ConfigModule
+  TypeOrmCoreModule --> ConfigHostModule
+  ConfigModule --> ConfigModule
+  ConfigModule --> TypeOrmCoreModule
+  ServeStaticModule --> ConfigHostModule
+  ServeStaticModule --> TypeOrmCoreModule
+  AppModule --> ConfigModule
+  AppModule --> TypeOrmModule
+  TypeOrmModule --> ConfigModule
+  TypeOrmModule --> ConfigHostModule
+  TypeOrmModule --> TypeOrmCoreModule
   AppModule --> AuthModule
   AuthModule --> JwtModule
   JwtModule --> ConfigModule
   JwtModule --> ConfigHostModule
-  JwtModule --> DatabaseService
-  AuthModule --> DatabaseService
+  JwtModule --> TypeOrmCoreModule
+  AuthModule --> TypeOrmModule
   AuthModule --> RolesModule
-  RolesModule --> DatabaseService
+  RolesModule --> TypeOrmModule
   RolesModule --> ConfigModule
   RolesModule --> ConfigHostModule
+  RolesModule --> TypeOrmCoreModule
   AuthModule --> PermissionsModule
-  PermissionsModule --> DatabaseService
+  PermissionsModule --> TypeOrmModule
   PermissionsModule --> ConfigModule
   PermissionsModule --> ConfigHostModule
+  PermissionsModule --> TypeOrmCoreModule
   AuthModule --> MailModule
   MailModule --> ConfigModule
   MailModule --> ConfigHostModule
-  MailModule --> DatabaseService
+  MailModule --> TypeOrmCoreModule
   AuthModule --> SmsModule
   SmsModule --> ConfigModule
   SmsModule --> ConfigHostModule
-  SmsModule --> DatabaseService
+  SmsModule --> TypeOrmCoreModule
   AuthModule --> ConfigModule
   AuthModule --> ConfigHostModule
+  AuthModule --> TypeOrmCoreModule
   AppModule --> RolesModule
+  AppModule --> MailModule
+  AppModule --> SmsModule
+  AppModule --> MediaModule
+  MediaModule --> TypeOrmModule
+  MediaModule --> MulterModule
+  MulterModule --> ConfigModule
+  MulterModule --> ConfigHostModule
+  MulterModule --> TypeOrmCoreModule
+  MediaModule --> ConfigModule
+  MediaModule --> ConfigHostModule
+  MediaModule --> TypeOrmCoreModule
   AppModule --> UsersModule
+  UsersModule --> TypeOrmModule
   UsersModule --> ConfigModule
   UsersModule --> ConfigHostModule
-  UsersModule --> DatabaseService
-  AppModule --> TestingModule
-  TestingModule --> ConfigModule
-  TestingModule --> ConfigHostModule
-  TestingModule --> DatabaseService
+  UsersModule --> TypeOrmCoreModule
   AppModule --> CommonModule
   CommonModule --> ConfigModule
   CommonModule --> ConfigHostModule
-  CommonModule --> DatabaseService
-  AppModule --> LocationsModule
+  CommonModule --> TypeOrmCoreModule
+  AppModule --> RouterModule
+  RouterModule --> ConfigModule
+  RouterModule --> ConfigHostModule
+  RouterModule --> TypeOrmCoreModule
+  AppModule --> BusinessModule
+  BusinessModule --> LocationsModule
+  LocationsModule --> TypeOrmModule
   LocationsModule --> ConfigModule
   LocationsModule --> ConfigHostModule
-  LocationsModule --> DatabaseService
-  AppModule --> MailModule
-  AppModule --> SmsModule
+  LocationsModule --> TypeOrmCoreModule
+  BusinessModule --> ScheduleModule
+  ScheduleModule --> TypeOrmModule
+  ScheduleModule --> ConfigModule
+  ScheduleModule --> ConfigHostModule
+  ScheduleModule --> TypeOrmCoreModule
+  BusinessModule --> FacilityModule
+  FacilityModule --> TypeOrmModule
+  FacilityModule --> ConfigModule
+  FacilityModule --> ConfigHostModule
+  FacilityModule --> TypeOrmCoreModule
+  BusinessModule --> AmenityModule
+  AmenityModule --> TypeOrmModule
+  AmenityModule --> MulterModule
+  AmenityModule --> ConfigModule
+  AmenityModule --> ConfigHostModule
+  AmenityModule --> TypeOrmCoreModule
+  BusinessModule --> EventModule
+  EventModule --> TypeOrmModule
+  EventModule --> ConfigModule
+  EventModule --> ConfigHostModule
+  EventModule --> TypeOrmCoreModule
+  BusinessModule --> ReservationModule
+  ReservationModule --> TypeOrmModule
+  ReservationModule --> ConfigModule
+  ReservationModule --> ConfigHostModule
+  ReservationModule --> TypeOrmCoreModule
+  BusinessModule --> ReviewModule
+  ReviewModule --> TypeOrmModule
+  ReviewModule --> ConfigModule
+  ReviewModule --> ConfigHostModule
+  ReviewModule --> TypeOrmCoreModule
+  BusinessModule --> OfferModule
+  OfferModule --> TypeOrmModule
+  OfferModule --> MulterModule
+  OfferModule --> ConfigModule
+  OfferModule --> ConfigHostModule
+  OfferModule --> TypeOrmCoreModule
+  BusinessModule --> OfferCategoryModule
+  OfferCategoryModule --> TypeOrmModule
+  OfferCategoryModule --> ConfigModule
+  OfferCategoryModule --> ConfigHostModule
+  OfferCategoryModule --> TypeOrmCoreModule
+  BusinessModule --> TypeOrmModule
+  BusinessModule --> ConfigModule
+  BusinessModule --> ConfigHostModule
+  BusinessModule --> TypeOrmCoreModule
+  AppModule --> TestingModule
+  TestingModule --> ConfigModule
+  TestingModule --> ConfigHostModule
+  TestingModule --> TypeOrmCoreModule
+  AppModule --> ClientModule
+  ClientModule --> TypeOrmModule
+  ClientModule --> ConfigModule
+  ClientModule --> ConfigHostModule
+  ClientModule --> TypeOrmCoreModule
   AppModule --> ConfigHostModule
+  AppModule --> TypeOrmCoreModule

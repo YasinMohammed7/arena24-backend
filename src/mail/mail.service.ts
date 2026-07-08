@@ -19,7 +19,8 @@ export class MailService {
   }
 
   async sendPasswordResetEmail(to: string, token: string) {
-    const resetUrl = `${this.config.get("APP_URL")}/reset-password?token=${token}`;
+    const resetUrl = `${this.config.get("APP_URL")}/resetPassword?token=${token}`;
+    console.log(resetUrl);
 
     await this.transporter.sendMail({
       from: this.config.get("FROM_EMAIL"),
@@ -40,12 +41,14 @@ export class MailService {
     console.log(`Sending verification code ${code} to email: ${contact}`);
 
     // Example implementation (adapt to your existing mail service):
-    await this.transporter.sendMail({
-      from: this.config.get("FROM_EMAIL"),
-      to: contact,
-      subject: "Verification Code",
-      text: `Your verification code is: ${code}`,
-      html: `<p>Your verification code is: <strong>${code}</strong></p>`,
-    });
+    if (process.env.NODE_ENV !== "development") {
+      await this.transporter.sendMail({
+        from: this.config.get("FROM_EMAIL"),
+        to: contact,
+        subject: "Verification Code",
+        text: `Your verification code is: ${code}`,
+        html: `<p>Your verification code is: <strong>${code}</strong></p>`,
+      });
+    }
   }
 }

@@ -17,7 +17,6 @@ import {
   ParseBoolPipe,
   ParseFilePipe,
   MaxFileSizeValidator,
-  FileTypeValidator,
 } from "@nestjs/common";
 import { FileInterceptor } from "@nestjs/platform-express";
 import {
@@ -44,15 +43,12 @@ import { HasRoleOr } from "@/auth/decorators/authorize.decorator";
 // Optional image icon, size-capped. Shared by create + update.
 const iconFilePipe = new ParseFilePipe({
   fileIsRequired: false,
-  validators: [
-    new MaxFileSizeValidator({ maxSize: MAX_ICON_SIZE }),
-    new FileTypeValidator({ fileType: /^image\/(jpeg|png|webp|svg\+xml)$/ }),
-  ],
+  validators: [new MaxFileSizeValidator({ maxSize: MAX_ICON_SIZE })],
 });
 
 @ApiTags("amenity")
 @ApiBearerAuth("access-token")
-@Controller("business/amenity")
+@Controller("amenity")
 @UseGuards(JwtAuthGuard)
 export class AmenityController {
   constructor(private readonly amenityService: AmenityService) {}

@@ -1,5 +1,6 @@
 import { UsersModule } from "./users/users.module";
 import { Module } from "@nestjs/common";
+import { RouterModule } from "@nestjs/core";
 import { ServeStaticModule } from "@nestjs/serve-static";
 import { join } from "path";
 import { AuthModule } from "./auth/auth.module";
@@ -41,6 +42,12 @@ import { DatabaseService } from "./database/database.service";
     MediaModule,
     UsersModule,
     CommonModule,
+    RouterModule.register([
+      {
+        path: "business",
+        module: BusinessModule,
+      },
+    ]),
     BusinessModule,
     TestingModule,
     ClientModule,

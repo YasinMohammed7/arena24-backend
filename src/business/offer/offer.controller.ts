@@ -14,7 +14,6 @@ import {
   UploadedFile,
   ParseFilePipe,
   MaxFileSizeValidator,
-  FileTypeValidator,
 } from "@nestjs/common";
 import {
   ApiTags,
@@ -42,14 +41,11 @@ import { ApiPaginatedResponse } from "@/common/decorators/api-paginated-response
 // Optional cover image, size-capped. Used by create.
 const coverFilePipe = new ParseFilePipe({
   fileIsRequired: false,
-  validators: [
-    new MaxFileSizeValidator({ maxSize: MAX_COVER_SIZE }),
-    new FileTypeValidator({ fileType: /^image\/(jpeg|png|webp|svg\+xml)$/ }),
-  ],
+  validators: [new MaxFileSizeValidator({ maxSize: MAX_COVER_SIZE })],
 });
 
 @ApiTags("Offers")
-@Controller("business/offers")
+@Controller("offers")
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth("access-token")
 export class OfferController {

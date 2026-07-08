@@ -36,6 +36,7 @@ import { HasRoleOr } from "@/auth/decorators/authorize.decorator";
 import { JwtAuthGuard } from "@/auth/guards/jwt-auth.guard";
 
 @ApiTags("media")
+@UseGuards(JwtAuthGuard)
 @Controller("media")
 export class MediaController {
   constructor(private readonly mediaService: MediaService) {}
@@ -83,7 +84,6 @@ export class MediaController {
   @ApiBearerAuth("access-token")
   @ApiOperation({ summary: "List media for a given entity" })
   @ApiOkResponse({ description: "Array of matching media records" })
-  @UseGuards(JwtAuthGuard)
   @UseGuards(AuthorizationGuard)
   @HasRoleOr(["BUSINESS_OWNER", "PLATFORM_MANAGER"], ["read:own", "read:media"])
   @Get()
@@ -96,7 +96,6 @@ export class MediaController {
   @ApiParam({ name: "id", description: "Media id (uuid)" })
   @ApiOkResponse({ description: "Media deleted" })
   @ApiNotFoundResponse({ description: "Media not found" })
-  @UseGuards(JwtAuthGuard)
   @UseGuards(AuthorizationGuard)
   @HasRoleOr(["BUSINESS_OWNER", "PLATFORM_MANAGER"], ["delete:media"])
   @Delete(":id")

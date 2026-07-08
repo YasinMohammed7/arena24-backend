@@ -6,6 +6,7 @@ import { Locations } from "@/database/entities/locations";
 import { Media } from "@/database/entities/media";
 import { Offers } from "@/database/entities/offers";
 import { OfferCategories } from "@/database/entities/offerCategories";
+import { Event } from "@/database/entities/event";
 
 @Module({
   imports: [

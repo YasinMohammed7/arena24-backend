@@ -52,9 +52,6 @@ export class RolesService {
         rolePermissions: {
           permission: true,
         },
-        userRoles: {
-          user: true,
-        },
       },
       select: {
         id: true,
@@ -65,15 +62,6 @@ export class RolesService {
           permission: {
             id: true,
             name: true,
-          },
-        },
-        userRoles: {
-          roleId: true,
-          userId: true,
-          user: {
-            id: true,
-            name: true,
-            email: true,
           },
         },
       },
@@ -87,9 +75,6 @@ export class RolesService {
         rolePermissions: {
           permission: true,
         },
-        userRoles: {
-          user: true,
-        },
       },
       select: {
         id: true,
@@ -100,15 +85,6 @@ export class RolesService {
           permission: {
             id: true,
             name: true,
-          },
-        },
-        userRoles: {
-          userId: true,
-          roleId: true,
-          user: {
-            id: true,
-            name: true,
-            email: true,
           },
         },
       },

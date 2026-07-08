@@ -38,7 +38,7 @@ export class PermissionsController {
   // Permission endpoints
   @UseGuards(AuthorizationGuard)
   @HasRoleOr(["PLATFORM_ADMIN"], ["create:permission"])
-  @Post("permissions")
+  @Post()
   @ApiOperation({ summary: "Create a permission" })
   @ApiOkResponse({ description: "Permission created successfully" })
   @ApiBadRequestResponse({ description: "Invalid permission payload" })
@@ -49,7 +49,7 @@ export class PermissionsController {
 
   @UseGuards(AuthorizationGuard)
   @HasRoleOr(["PLATFORM_ADMIN"], ["read:permissions"])
-  @Get("permissions")
+  @Get()
   @ApiOperation({ summary: "Get all permissions" })
   @ApiOkResponse({ description: "Permissions retrieved successfully" })
   getPermissions() {
