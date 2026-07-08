@@ -2,6 +2,8 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  Inject,
+  forwardRef,
 } from "@nestjs/common";
 import { CreateReservationDto } from "./dto/create-reservation.dto";
 import { UpdateReservationDto } from "./dto/update-reservation.dto";
@@ -12,6 +14,7 @@ import { Reservations } from "@/database/entities/reservations";
 import { ReservationStatus } from "@/common/enums/reservation-status.enum";
 import { Event } from "@/database/entities/event";
 import { User } from "@/database/entities/user";
+import { ReservationGateway } from "./reservation.gateway";
 
 @Injectable()
 export class ReservationService {
@@ -23,7 +26,9 @@ export class ReservationService {
     @InjectRepository(Event)
     private readonly eventRepo: Repository<Event>,
     @InjectRepository(User)
-    private readonly userRepo: Repository<User>
+    private readonly userRepo: Repository<User>,
+    @Inject(forwardRef(() => ReservationGateway))
+    private readonly reservationGateway: ReservationGateway
   ) {}
 
   async create(createReservationDto: CreateReservationDto, userId: string) {
@@ -140,7 +145,7 @@ export class ReservationService {
 
     const savedReservation = await this.reservationRepo.save(reservation);
 
-    return this.reservationRepo.findOne({
+    const created = await this.reservationRepo.findOne({
       where: { id: savedReservation.id },
       relations: {
         user: true,
@@ -176,6 +181,13 @@ export class ReservationService {
         },
       },
     });
+
+    // Emit real-time update via WebSocket to the reservation owner
+    if (created?.userId) {
+      this.reservationGateway.emitReservationUpdate(created.userId, created);
+    }
+
+    return created;
   }
 
   async findAll() {
@@ -282,7 +294,7 @@ export class ReservationService {
 
     await this.reservationRepo.update(id, updateReservationDto);
 
-    return this.reservationRepo.findOne({
+    const updated = await this.reservationRepo.findOne({
       where: { id },
       relations: {
         user: true,
@@ -318,6 +330,13 @@ export class ReservationService {
         },
       },
     });
+
+    // Emit real-time update via WebSocket to the reservation owner
+    if (updated?.userId) {
+      this.reservationGateway.emitReservationUpdate(updated.userId, updated);
+    }
+
+    return updated;
   }
 
   async remove(id: number) {
